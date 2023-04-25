@@ -29,15 +29,21 @@ fun sapply :: "('f,'v) subst \<Rightarrow> ('f,'v) term \<Rightarrow> ('f,'v) te
 
 fun scomp :: "('f,'v) subst \<Rightarrow> ('f,'v) subst \<Rightarrow> ('f,'v) subst" (infixl "\<circ>\<^sub>s" 75)
   where 
-"(\<sigma> \<circ>\<^sub>s \<tau>) x = \<sigma> \<cdot> \<tau> x"
+"(\<sigma> \<circ>\<^sub>s \<tau>) x =  \<sigma> \<cdot> \<tau> x"
 
 lemma fv_sapply: "fv (\<sigma> \<cdot> t) = (\<Union>x \<in> fv t. fv (\<sigma> x))"
-  oops
+  by(induction t rule:fv.induct) simp_all
 
 lemma sapply_cong:
-  assumes a: "\<And>x. x \<in> fv t \<Longrightarrow> \<sigma> x = \<tau> x"
+  assumes "\<And>x. x \<in> fv t \<Longrightarrow> \<sigma> x = \<tau> x"
   shows "\<sigma> \<cdot> t = \<tau> \<cdot> t"
-  oops
+proof(cases t)
+  case (Var x)
+  then show ?thesis using assms by simp
+next
+  case (Fun f ts)
+  then show ?thesis sorry
+qed
 
 lemma scomp_sapply: "(\<sigma> \<circ>\<^sub>s \<tau> ) x = \<sigma> \<cdot> (\<tau> x)"
   by simp
@@ -46,12 +52,15 @@ lemma sapply_scomp_distrib: "(\<sigma> \<circ>\<^sub>s \<tau> ) \<cdot> t = \<si
   by (induction t) simp_all
 
 lemma scomp_assoc: "(\<sigma> \<circ>\<^sub>s \<tau>) \<circ>\<^sub>s \<rho> =  \<sigma> \<circ>\<^sub>s (\<tau> \<circ>\<^sub>s \<rho>)"
-  oops
+  using sapply_scomp_distrib by fastforce
 
 lemma scomp_Var [simp]: "\<sigma> \<circ>\<^sub>s Var = \<sigma>"
-  oops
+  by auto
+
+lemma var_term: "Var \<cdot> t = t" 
+  by (induction t) (simp_all add: list.map_ident_strong)
 
 lemma Var_scomp [simp]: "Var \<circ>\<^sub>s \<sigma>= \<sigma>"
-  oops
+  by (auto simp add:var_term)
 
 end
