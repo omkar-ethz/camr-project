@@ -16,9 +16,9 @@ value "\<Union> {{1::nat}, {2::nat}}"
 
 fun fv :: "('f,'v) term \<Rightarrow> 'v set" where
 "fv (Var x) = {x}"
-| "fv (Fun f ts) = (\<Union>t\<in>set(ts). fv t)"
+| "fv (Fun f ts) = \<Union>(fv ` set(ts))"
 
-value "fv (Fun a [Var (1::nat), (Fun a [Var (2::nat)])])"
+value "fv (Fun a [Var (1::nat), (Fun b [Var (2::nat)])])"
 
 type_synonym ('f,'v) subst = "'v \<Rightarrow> ('f,'v) term"
 
@@ -37,13 +37,7 @@ lemma fv_sapply: "fv (\<sigma> \<cdot> t) = (\<Union>x \<in> fv t. fv (\<sigma> 
 lemma sapply_cong:
   assumes "\<And>x. x \<in> fv t \<Longrightarrow> \<sigma> x = \<tau> x"
   shows "\<sigma> \<cdot> t = \<tau> \<cdot> t"
-proof(cases t)
-  case (Var x)
-  then show ?thesis using assms by simp
-next
-  case (Fun f ts)
-  then show ?thesis sorry
-qed
+  using assms by (induction t) auto
 
 lemma scomp_sapply: "(\<sigma> \<circ>\<^sub>s \<tau> ) x = \<sigma> \<cdot> (\<tau> x)"
   by simp
@@ -64,34 +58,36 @@ lemma Var_scomp [simp]: "Var \<circ>\<^sub>s \<sigma>= \<sigma>"
   by (auto simp add:var_term)
 
 fun sdom :: "('f,'v) subst \<Rightarrow> 'v set" where
-  "sdom \<sigma> = \<Union>x. \<sigma> x \<noteq> x"
+  "sdom \<sigma> = {x. (\<sigma> x \<noteq> Var x)}"
 
-fun sran :: "('f,'v) subst \<Rightarrow> 'v set" where
-  "sran \<sigma> = set (map \<sigma> (sdom \<sigma>))"
+fun sran :: "('f,'v) subst \<Rightarrow> ('f,'v) term set" where
+  "sran \<sigma> = {\<sigma> x |x. x \<in> sdom \<sigma>}"
 
 fun svran :: "('f,'v) subst \<Rightarrow> 'v set" where
-  "svran \<sigma> = (\<Union>t \<in> sran \<sigma>. fv t)" 
+  "svran \<sigma> = (\<Union>t \<in> sran \<sigma>. fv t)"
 
 lemma sdom_Var[simp]: "sdom Var = {}"
-  oops
+  by simp
 
 lemma svran_Var[simp]: "svran Var = {}"
-  oops
+  by simp
 
-lemma sdom_single_non_trivial[simp]: "t \<noteq> Var x \<Longrightarrow> sdom (Var (x:=t)) = {x}"
-  oops
+lemma sdom_single_non_trivial[simp]: "t \<noteq> Var x \<Longrightarrow> sdom (Var(x:=t)) = {x}"
+  by simp
 
-lemma svran_single_non_trivial[simp]: "t \<noteq> Var x \<Longrightarrow> svran (Var (x:=t)) = {x}"
-  oops
+lemma svran_single_non_trivial[simp]: "t \<noteq> Var x \<Longrightarrow> svran (Var(x:=t)) = fv t"
+  by simp
 
-lemma fv_apply_sdom_svran: "x \<in> (fv t - sdom \<sigma>) \<union> svran \<sigma>"
-  oops
+lemma fv_apply_sdom_svran: "x \<in> fv (\<sigma> \<cdot> t) \<Longrightarrow> x \<in> (fv t - sdom \<sigma>) \<union> svran \<sigma>"
+  apply(auto simp add: fv_sapply)
+   apply force
+  by (metis fv.simps(1) singletonD) (*TODO*)
 
 lemma sdom_scomp: "sdom (\<sigma> \<circ>\<^sub>s \<tau>) \<subseteq> sdom \<sigma> \<union> sdom \<tau>"
-  oops
+  by auto
 
 lemma svran_scomp: "svran (\<sigma> \<circ>\<^sub>s \<tau>) \<subseteq> svran \<sigma> \<union> svran \<tau>"
-  oops
+  by(auto simp add:fv_sapply) force
 
 subsection \<open>Assignment 2\<close>
 
