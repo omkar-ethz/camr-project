@@ -121,23 +121,60 @@ lemma sapply_scomp_distrib_eq: "sapply_eq (\<sigma> \<circ>\<^sub>s \<tau> ) t =
 lemma sapply_scomp_distrib_sys: "sapply_sys (\<sigma> \<circ>\<^sub>s \<tau> ) t = sapply_sys \<sigma> (sapply_sys \<tau>  t)"
   by (simp add: sapply_sys_def sapply_scomp_distrib_eq)
 
-fun unifies :: "('f,'v) subst \<Rightarrow> ('f,'v) equation \<Rightarrow> bool"
-  where
-    "unifies \<sigma> (Var x, Var y) = (if \<sigma> x = \<sigma> y then True else False)"
-  | "unifies \<sigma> (Var x, Fun f xs) = False"
-  | "unifies \<sigma> (Fun f xs, Var y) = False"
-  | "unifies \<sigma> (x, y) = all (map (unifies \<sigma>) (\<sigma> \<cdot> x, \<sigma> \<cdot> y))"
+fun unifies :: "('f,'v) subst \<Rightarrow> ('f,'v) equation \<Rightarrow> bool" where
+"unifies \<sigma> (t, u) = (if \<sigma> \<cdot> t = \<sigma> \<cdot> u then True else False)"
+
+value "let \<sigma>=(\<lambda>x.(if x = ''b'' then Var ''a'' else Var x)) 
+  in unifies \<sigma> (Fun f [Var ''a'', Var ''b''], Fun f [Var ''b'', Var ''a''])"
 
 definition unifiess :: "('f,'v) subst \<Rightarrow> ('f,'v) system \<Rightarrow> bool" where
-  "unifiess \<sigma> x = all (map (unifies \<sigma>) x)"
+  "unifiess \<sigma> x = fold (\<and>) (map (unifies \<sigma>) x) True"
 
 fun is_mgu :: "('f,'v) subst \<Rightarrow> ('f,'v) system \<Rightarrow> bool" where
   "is_mgu \<sigma> x = True"
+
 
 lemma unifies_sapply_eq: "unifies \<sigma> (sapply_eq \<tau> eq) \<longleftrightarrow> unifies (\<sigma> \<circ>\<^sub>s \<tau>) eq"
   oops
 
 lemma unifies_sapply_sys: "unifiess \<sigma> (sapply_sys \<tau> sys) \<longleftrightarrow> unifiess (\<sigma> \<circ>\<^sub>s \<tau>) sys"
   oops
+
+
+subsection \<open>Assignment 4\<close>
+
+value "fold (+) ([1,2,3]) (0::nat)"
+
+fun wf_term :: "('f \<Rightarrow> nat) \<Rightarrow> ('f,'v) term \<Rightarrow> bool" where
+"wf_term ar t = (case t of Var _ \<Rightarrow> True | 
+  Fun f ts \<Rightarrow> ar f  = size ts
+  \<and> (fold (\<and>) (map (wf_term ar) ts) True))"
+
+value "wf_term (\<lambda>a.2) (Fun a [Var (1::nat), (Fun b [Var (1::nat), Var c])])"
+
+definition wf_subst :: "('f \<Rightarrow> nat) \<Rightarrow> ('f,'v) subst \<Rightarrow> bool " where
+"wf_subst ar \<sigma>  = (\<forall>x. wf_term ar (\<sigma> x))"
+(*"wf_subst ar \<sigma> = (False \<notin> wf_term ar ` sran \<sigma>)" *)
+(*not executable as sran and sdom is not executable*)
+
+term "wf_subst (\<lambda>a.1) (\<lambda>x.(Var x))"
+
+lemma [simp]:
+  assumes "wf_subst ar \<sigma>"
+  fixes x
+  shows "wf_term ar (\<sigma> x)"
+  using assms by (simp add:wf_subst_def)
+
+lemma wf_term_sapply:
+"\<lbrakk>wf_term arity t; wf_subst arity \<sigma>\<rbrakk> \<Longrightarrow> wf_term arity (\<sigma> \<cdot> t)"
+  apply(induction t)
+   apply(simp del:wf_term.simps)
+  apply(auto simp del:wf_term.simps)
+  oops
+
+lemma wf_subst_scomp:
+"\<lbrakk>wf_subst arity \<sigma>; wf_subst arity \<tau>\<rbrakk> \<Longrightarrow> wf_subst arity (\<sigma> \<circ>\<^sub>s \<tau>)"
+  oops
+
 
 end
