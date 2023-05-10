@@ -137,12 +137,39 @@ definition is_more_general :: "('f,'v) subst \<Rightarrow> ('f,'v) subst \<Right
 definition is_mgu :: "('f,'v) subst \<Rightarrow> ('f,'v) system \<Rightarrow> bool" where
   "is_mgu \<sigma> eqs = (unifiess \<sigma> eqs \<and> (\<nexists> \<tau>. unifiess \<tau> eqs \<and> is_more_general \<tau> \<sigma>))"
 
-
 lemma unifies_sapply_eq: "unifies \<sigma> (sapply_eq \<tau> eq) \<longleftrightarrow> unifies (\<sigma> \<circ>\<^sub>s \<tau>) eq"
-  oops
+  apply(auto)
+  subgoal apply(auto simp add:sapply_eq_def)
+    by (metis sapply_scomp_distrib surjective_pairing unifies.simps)
+  apply(auto simp add:sapply_eq_def)
+  by (metis sapply_scomp_distrib surjective_pairing unifies.simps)
 
 lemma unifies_sapply_sys: "unifiess \<sigma> (sapply_sys \<tau> sys) \<longleftrightarrow> unifiess (\<sigma> \<circ>\<^sub>s \<tau>) sys"
+(*sledgehammer finds a proof with smt, 
+todo find a better proof as smt is not allowed (grading guidelines)*)
   oops
+
+
+  subsection \<open>Assignment 3\<close>
+
+function (sequential) unify :: "('f , 'v) system \<Rightarrow> ('f , 'v) subst option" where
+"unify [] = Some Var"
+| Var: "unify ((Var x, t) # eqs) = (
+  if x \<notin> fv t 
+    then let ans = unify (sapply_sys (Var(x:=t)) eqs) in
+      case ans of None \<Rightarrow> None
+      | Some sub \<Rightarrow> Some (sub \<circ>\<^sub>s Var(x:=t))
+  else if Var x = t
+    then unify eqs
+  else None
+)"
+| Swap: "unify ((u, Var x) # eqs) = unify ((Var x, u) # eqs)"
+| Fun: "unify ((Fun f xs, Fun g ys) # eqs) = (if f=g then unify ((zip xs ys) @ eqs) else None)"
+  by pat_completeness auto
+termination sorry
+
+
+value "unify [(Var x, Fun f []), (Fun g [Var x], Fun g [Fun f []])]"
 
 
 subsection \<open>Assignment 4\<close>
@@ -159,7 +186,8 @@ value "wf_term (\<lambda>a.2) (Fun a [Var (1::nat), (Fun b [Var (1::nat), Var c]
 definition wf_subst :: "('f \<Rightarrow> nat) \<Rightarrow> ('f,'v) subst \<Rightarrow> bool " where
 "wf_subst ar \<sigma>  = (\<forall>x. wf_term ar (\<sigma> x))"
 (*"wf_subst ar \<sigma> = (False \<notin> wf_term ar ` sran \<sigma>)" *)
-(*not executable as sran and sdom is not executable*)
+(*not executable as sran and sdom is not executable in general, 
+only executable when 'v is a finite type which is the expected case*)
 
 term "wf_subst (\<lambda>a.1) (\<lambda>x.(Var x))"
 
