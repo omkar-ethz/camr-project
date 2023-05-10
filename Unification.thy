@@ -81,7 +81,7 @@ lemma svran_single_non_trivial[simp]: "t \<noteq> Var x \<Longrightarrow> svran 
 lemma fv_apply_sdom_svran: "x \<in> fv (\<sigma> \<cdot> t) \<Longrightarrow> x \<in> (fv t - sdom \<sigma>) \<union> svran \<sigma>"
   apply(auto simp add: fv_sapply)
    apply force
-  by (metis fv.simps(1) singletonD) (*TODO*)
+  by (metis fv.simps(1) singletonD)
 
 lemma sdom_scomp: "sdom (\<sigma> \<circ>\<^sub>s \<tau>) \<subseteq> sdom \<sigma> \<union> sdom \<tau>"
   by auto
@@ -127,11 +127,15 @@ fun unifies :: "('f,'v) subst \<Rightarrow> ('f,'v) equation \<Rightarrow> bool"
 value "let \<sigma>=(\<lambda>x.(if x = ''b'' then Var ''a'' else Var x)) 
   in unifies \<sigma> (Fun f [Var ''a'', Var ''b''], Fun f [Var ''b'', Var ''a''])"
 
-definition unifiess :: "('f,'v) subst \<Rightarrow> ('f,'v) system \<Rightarrow> bool" where
-  "unifiess \<sigma> x = fold (\<and>) (map (unifies \<sigma>) x) True"
+fun unifiess :: "('f,'v) subst \<Rightarrow> ('f,'v) system \<Rightarrow> bool" where
+  "unifiess \<sigma> eqs = fold (\<and>) (map (unifies \<sigma>) eqs) True"
 
-fun is_mgu :: "('f,'v) subst \<Rightarrow> ('f,'v) system \<Rightarrow> bool" where
-  "is_mgu \<sigma> x = True"
+(* asserts that \<sigma> is more general than \<tau> *)
+definition is_more_general :: "('f,'v) subst \<Rightarrow> ('f,'v) subst \<Rightarrow> bool" where
+"is_more_general \<sigma> \<tau> = (\<exists>\<rho>. \<rho> \<circ>\<^sub>s \<sigma> = \<tau>)"
+
+definition is_mgu :: "('f,'v) subst \<Rightarrow> ('f,'v) system \<Rightarrow> bool" where
+  "is_mgu \<sigma> eqs = (unifiess \<sigma> eqs \<and> (\<nexists> \<tau>. unifiess \<tau> eqs \<and> is_more_general \<tau> \<sigma>))"
 
 
 lemma unifies_sapply_eq: "unifies \<sigma> (sapply_eq \<tau> eq) \<longleftrightarrow> unifies (\<sigma> \<circ>\<^sub>s \<tau>) eq"
@@ -167,9 +171,6 @@ lemma [simp]:
 
 lemma wf_term_sapply:
 "\<lbrakk>wf_term arity t; wf_subst arity \<sigma>\<rbrakk> \<Longrightarrow> wf_term arity (\<sigma> \<cdot> t)"
-  apply(induction t)
-   apply(simp del:wf_term.simps)
-  apply(auto simp del:wf_term.simps)
   oops
 
 lemma wf_subst_scomp:
