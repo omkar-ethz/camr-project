@@ -122,7 +122,7 @@ lemma sapply_scomp_distrib_sys: "sapply_sys (\<sigma> \<circ>\<^sub>s \<tau> ) t
   by (simp add: sapply_sys_def sapply_scomp_distrib_eq)
 
 fun unifies :: "('f,'v) subst \<Rightarrow> ('f,'v) equation \<Rightarrow> bool" where
-"unifies \<sigma> (t, u) = (if \<sigma> \<cdot> t = \<sigma> \<cdot> u then True else False)"
+"unifies \<sigma> (t, u) = (\<sigma> \<cdot> t = \<sigma> \<cdot> u)"  (* chsp: if b then True else False = b *)
 
 value "let \<sigma>=(\<lambda>x.(if x = ''b'' then Var ''a'' else Var x)) 
   in unifies \<sigma> (Fun f [Var ''a'', Var ''b''], Fun f [Var ''b'', Var ''a''])"
@@ -147,12 +147,23 @@ lemma unifies_sapply_eq: "unifies \<sigma> (sapply_eq \<tau> eq) \<longleftright
 lemma unifies_sapply_sys: "unifiess \<sigma> (sapply_sys \<tau> sys) \<longleftrightarrow> unifiess (\<sigma> \<circ>\<^sub>s \<tau>) sys"
 (*sledgehammer finds a proof with smt, 
 todo find a better proof as smt is not allowed (grading guidelines)*)
-  oops
+  sorry
 
 
   subsection \<open>Assignment 3\<close>
 
-function (sequential) unify :: "('f , 'v) system \<Rightarrow> ('f , 'v) subst option" where
+fun size_term :: "('f,'v) term \<Rightarrow> nat" where
+"size_term (Var _)= 0"
+| "size_term (Fun f ts) = 1 + sum_list (map size_term ts)"
+
+fun size_term_sys :: "('f,'v) system \<Rightarrow> nat" where
+"size_term_sys [] = 0"
+| "size_term_sys ((t,u) # eqs) = size_term t + size_term_sys eqs"
+
+(*
+  chsp: in equation Fun: check that the xs and ys have the same length
+*)
+function (sequential) unify :: "('f,'v) system \<Rightarrow> ('f,'v) subst option" where
 "unify [] = Some Var"
 | Var: "unify ((Var x, t) # eqs) = (
   if x \<notin> fv t 
@@ -164,12 +175,33 @@ function (sequential) unify :: "('f , 'v) system \<Rightarrow> ('f , 'v) subst o
   else None
 )"
 | Swap: "unify ((u, Var x) # eqs) = unify ((Var x, u) # eqs)"
-| Fun: "unify ((Fun f xs, Fun g ys) # eqs) = (if f=g then unify ((zip xs ys) @ eqs) else None)"
+| Fun: "unify ((Fun f xs, Fun g ys) # eqs) = (if f=g  \<and> length xs = length ys then unify ((zip xs ys) @ eqs) else None)"
   by pat_completeness auto
-termination sorry
+termination 
+  (* chsp: note that (\<lambda>sys. size_term_sys sys) will eta-reduce to size_term_sys *)
+  apply(relation "measures [(\<lambda>sys. card (fv_sys sys)), size_term_sys, size]")
+      apply simp
+  thm card_mono psubset_card_mono
+  sorry
 
 
 value "unify [(Var x, Fun f []), (Fun g [Var x], Fun g [Fun f []])]"
+
+(*Soundness:
+(i) If unify returns a substitution, it is a unifier.
+(ii) If unify returns a substitution \<sigma> and there is another unifier \<tau> , then
+\<tau> = \<rho> ◦s \<sigma> for some \<rho>.*)
+
+lemma unify_correct: "unify sys = (Some \<sigma>) \<Longrightarrow> unifiess \<sigma> sys"
+  apply(induction sys rule:unify.induct)
+     apply(simp)
+  subgoal sorry
+  subgoal by auto
+  subgoal sorry
+  done
+
+lemma unify_mgu: "\<lbrakk>unify sys = (Some \<sigma>); unifiess \<tau> sys; \<tau> \<noteq> \<sigma>\<rbrakk> \<Longrightarrow> \<exists>\<rho>. \<tau> = \<rho> \<circ>\<^sub>s \<sigma>"
+  oops
 
 
 subsection \<open>Assignment 4\<close>
@@ -199,11 +231,11 @@ lemma [simp]:
 
 lemma wf_term_sapply:
 "\<lbrakk>wf_term arity t; wf_subst arity \<sigma>\<rbrakk> \<Longrightarrow> wf_term arity (\<sigma> \<cdot> t)"
-  oops
+  sorry
 
 lemma wf_subst_scomp:
 "\<lbrakk>wf_subst arity \<sigma>; wf_subst arity \<tau>\<rbrakk> \<Longrightarrow> wf_subst arity (\<sigma> \<circ>\<^sub>s \<tau>)"
-  oops
+  sorry
 
 
 end
