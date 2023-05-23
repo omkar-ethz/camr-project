@@ -127,8 +127,12 @@ fun unifies :: "('f,'v) subst \<Rightarrow> ('f,'v) equation \<Rightarrow> bool"
 value "let \<sigma>=(\<lambda>x.(if x = ''b'' then Var ''a'' else Var x)) 
   in unifies \<sigma> (Fun f [Var ''a'', Var ''b''], Fun f [Var ''b'', Var ''a''])"
 
+(*fun unifiess :: "('f,'v) subst \<Rightarrow> ('f,'v) system \<Rightarrow> bool" where
+  "unifiess \<sigma> eqs = fold (\<and>) (map (unifies \<sigma>) eqs) True"*)
+
 fun unifiess :: "('f,'v) subst \<Rightarrow> ('f,'v) system \<Rightarrow> bool" where
-  "unifiess \<sigma> eqs = fold (\<and>) (map (unifies \<sigma>) eqs) True"
+  "unifiess \<sigma> [] = True"
+|  "unifiess \<sigma> (eq#eqs) = (unifies \<sigma> eq \<and> unifiess \<sigma> eqs)"
 
 (* asserts that \<sigma> is more general than \<tau> *)
 definition is_more_general :: "('f,'v) subst \<Rightarrow> ('f,'v) subst \<Rightarrow> bool" where
@@ -196,13 +200,12 @@ lemma unify_correct: "unify sys = (Some \<sigma>) \<Longrightarrow> unifiess \<s
   apply(induction sys rule:unify.induct)
      apply(simp)
   subgoal sorry
-  subgoal sorry
+  subgoal by simp
   subgoal sorry
   done
 
 lemma unify_mgu: "\<lbrakk>unify sys = (Some \<sigma>); unifiess \<tau> sys; \<tau> \<noteq> \<sigma>\<rbrakk> \<Longrightarrow> \<exists>\<rho>. \<tau> = \<rho> \<circ>\<^sub>s \<sigma>"
-  oops
-
+  sorry
 
 subsection \<open>Assignment 4\<close>
 

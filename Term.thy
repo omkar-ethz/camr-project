@@ -2,29 +2,37 @@ theory Term
   imports Unification
 begin
 
-datatype msg = Const string
-  | Variable string
-  | Hash msg
-  | Pair msg msg
-  | Senc msg msg
-  | Aenc msg msg
-  | Sign msg msg
 
 term "Var ''a''"
 term "Fun (1::nat) [Var ''a'']"
 
-datatype symbol = Const string | Hash | Pair | Senc | Aenc | Sign
+
+datatype symbol = Const string | iota | Hash | Pair | Senc | Aenc | Sign
+
+datatype msg = Const string
+  | \<iota>
+  | Variable string
+  | Hash msg ("\<h>(_)")
+  | Pair msg msg ("\<langle>_,_\<rangle>" [59,59]58)
+  | Senc msg msg ("\<lbrace>_\<rbrace>\<^sub>_" [57,57]56)
+  | Aenc msg msg ("{_}\<^sub>_" [57,57]56)
+  | Sign msg msg ("[_]\<^sub>_" [57,57]56)
+
+value "\<lbrace>\<langle>a,\<h>(b)\<rangle>\<rbrace>\<^sub>c = Senc (Pair a \<h> b) c"
+
 
 term "msg.Hash a"
                      
 fun arity :: "symbol \<Rightarrow> nat" where
-"arity (Const _)= 0"
-| "arity Hash = 1"
+"arity (symbol.Const _)= 0"
+| "arity iota = 0"
+| "arity symbol.Hash = 1"
 | "arity _ = 2"
 
 fun embed :: "msg \<Rightarrow> (symbol, string) term " where
 "embed (Variable v) = Var v"
 | "embed (msg.Const c) = Fun (symbol.Const c) []"
+| "embed (msg.\<iota>) = Fun (iota) []"
 | "embed (msg.Hash t) = Fun symbol.Hash [embed t]"
 | "embed (msg.Pair t u) = Fun symbol.Pair [embed t, embed u]"
 | "embed (msg.Senc t u) = Fun symbol.Senc [embed t, embed u]"
@@ -34,6 +42,7 @@ fun embed :: "msg \<Rightarrow> (symbol, string) term " where
 fun msg_of_term :: "(symbol, string) term \<Rightarrow> msg" where
 "msg_of_term (Var v) = Variable v"
 |  "msg_of_term (Fun (symbol.Const c) []) = msg.Const c"
+|  "msg_of_term (Fun (iota) []) = msg.\<iota>"
 | "msg_of_term (Fun symbol.Hash [t]) = msg.Hash (msg_of_term t)"
 | "msg_of_term (Fun symbol.Pair [t,u]) = msg.Pair (msg_of_term t) (msg_of_term u)"
 | "msg_of_term (Fun symbol.Senc [t,u]) =  msg.Senc (msg_of_term t) (msg_of_term u)"
@@ -99,13 +108,14 @@ lift_definition unifies_msg::"subst_msg \<Rightarrow> equation_msg \<Rightarrow>
 lift_definition unifiess_msg::"subst_msg \<Rightarrow> system_msg \<Rightarrow> bool" is unifiess 
   done
 
+(*Why abstraction violation for subst_to_subst_msg when generating code for unify_msg?*)
 fun subst_to_subst_msg::"(symbol, string) subst \<Rightarrow> subst_msg" where
 "subst_to_subst_msg \<sigma> = (\<lambda>s. msg_of_term (\<sigma> s))"
 
 fun unify_msg::"system_msg \<Rightarrow> subst_msg option" where
 "unify_msg sys = (case (unify (embed_sys sys)) of Some \<sigma> \<Rightarrow> Some (subst_to_subst_msg \<sigma>) | None \<Rightarrow> None)"
 
-
 lemma unify_msg_correct: "unify_msg sys = (Some \<sigma>) \<Longrightarrow> unifiess_msg \<sigma> sys"
-  apply(simp add: unify_correct unifiess_msg_def)
   sorry
+
+end
