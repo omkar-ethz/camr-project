@@ -196,7 +196,7 @@ lemma unify_correct: "unify sys = (Some \<sigma>) \<Longrightarrow> unifiess \<s
   apply(induction sys rule:unify.induct)
      apply(simp)
   subgoal sorry
-  subgoal by auto
+  subgoal sorry
   subgoal sorry
   done
 
@@ -209,9 +209,8 @@ subsection \<open>Assignment 4\<close>
 value "fold (+) ([1,2,3]) (0::nat)"
 
 fun wf_term :: "('f \<Rightarrow> nat) \<Rightarrow> ('f,'v) term \<Rightarrow> bool" where
-"wf_term ar t = (case t of Var _ \<Rightarrow> True | 
-  Fun f ts \<Rightarrow> ar f  = size ts
-  \<and> (fold (\<and>) (map (wf_term ar) ts) True))"
+"wf_term ar (Var _) = True"
+| "wf_term ar (Fun f ts) =  ((ar f  = size ts) \<and> (fold (\<and>) (map (wf_term ar) ts) True))"
 
 value "wf_term (\<lambda>a.2) (Fun a [Var (1::nat), (Fun b [Var (1::nat), Var c])])"
 
@@ -231,11 +230,14 @@ lemma [simp]:
 
 lemma wf_term_sapply:
 "\<lbrakk>wf_term arity t; wf_subst arity \<sigma>\<rbrakk> \<Longrightarrow> wf_term arity (\<sigma> \<cdot> t)"
+  using wf_subst_def
   sorry
+  (*by (metis sapply.simps(1) wf_term.elims(1) wf_term.simps(2))*)
 
 lemma wf_subst_scomp:
 "\<lbrakk>wf_subst arity \<sigma>; wf_subst arity \<tau>\<rbrakk> \<Longrightarrow> wf_subst arity (\<sigma> \<circ>\<^sub>s \<tau>)"
-  sorry
+  using wf_term_sapply
+  by (metis scomp.elims wf_subst_def)
 
 
 end

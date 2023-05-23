@@ -51,5 +51,61 @@ lemma embed_msg_of_term [simp]: "wf_term arity t \<Longrightarrow> embed (msg_of
                       apply(simp_all)
   using arity.elims numerals(2) by auto
 
+lemma wf_subst_embed [simp]: "wf_subst arity (embed \<circ> \<sigma>)"
+  using wf_subst_def wf_term_embed by fastforce
 
- 
+lemma msg_of_term_inject:
+"\<lbrakk>wf_term arity t1; wf_term arity t2 \<rbrakk> 
+  \<Longrightarrow> msg_of_term t1 = msg_of_term t2 \<longleftrightarrow> t1 = t2"
+  using embed_msg_of_term by fastforce
+
+lemma type_definition_msg: 
+"type_definition embed msg_of_term {t. wf_term arity t}"
+  apply (standard) 
+  using wf_term_embed by auto
+
+setup_lifting type_definition_msg
+
+lift_definition fv_msg::"msg \<Rightarrow> string set" is fv
+  done
+
+lemma "fv_msg (msg.Variable ''a'') = {''a''}"
+  apply(simp add:fv_msg_def)
+  done
+
+type_synonym subst_msg = "string \<Rightarrow> msg"
+
+lift_definition sapply_msg::"subst_msg \<Rightarrow> msg \<Rightarrow> msg" is sapply
+  using wf_subst_def wf_term_sapply by blast
+
+type_synonym equation_msg = "msg \<times> msg"
+type_synonym system_msg = "equation_msg list"
+
+fun embed_eqn::"equation_msg \<Rightarrow> (symbol, string) equation" where
+"embed_eqn (m1, m2) = (embed m1, embed m2)"
+
+fun embed_sys::"system_msg \<Rightarrow> (symbol,string) system" where
+"embed_sys sys = map embed_eqn sys"
+
+lift_definition sapply_eq_msg::"subst_msg \<Rightarrow> equation_msg \<Rightarrow> equation_msg" is sapply_eq
+  by (simp add: pred_prod_beta sapply_eq_def wf_subst_def wf_term_sapply)
+
+(*lift_definition sapply_sys_msg::"subst_msg \<Rightarrow> system_msg \<Rightarrow> system_msg" is sapply_sys
+  *)   
+
+lift_definition unifies_msg::"subst_msg \<Rightarrow> equation_msg \<Rightarrow> bool" is unifies
+  done
+
+lift_definition unifiess_msg::"subst_msg \<Rightarrow> system_msg \<Rightarrow> bool" is unifiess 
+  done
+
+fun subst_to_subst_msg::"(symbol, string) subst \<Rightarrow> subst_msg" where
+"subst_to_subst_msg \<sigma> = (\<lambda>s. msg_of_term (\<sigma> s))"
+
+fun unify_msg::"system_msg \<Rightarrow> subst_msg option" where
+"unify_msg sys = (case (unify (embed_sys sys)) of Some \<sigma> \<Rightarrow> Some (subst_to_subst_msg \<sigma>) | None \<Rightarrow> None)"
+
+
+lemma unify_msg_correct: "unify_msg sys = (Some \<sigma>) \<Longrightarrow> unifiess_msg \<sigma> sys"
+  apply(simp add: unify_correct unifiess_msg_def)
+  sorry
