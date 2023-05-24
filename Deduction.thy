@@ -32,21 +32,29 @@ proof -
   thus "{\<langle>m, n\<rangle>} \<turnstile> \<h>(\<langle>n, m\<rangle>)" by (auto intro:CompHash)
 qed
 
-lemma "{\<lbrace>m\<rbrace>\<^sub>k, {k}\<^sub>\<iota>} \<turnstile> (\<langle>m,([k]\<^sub>\<iota>)\<rangle>)" 
-  oops
+lemma "{\<lbrace>m\<rbrace>\<^sub>k, {k}\<^sub>\<iota>} \<turnstile> (\<langle>m,([k]\<^sub>\<iota>)\<rangle>)" (is "?T \<turnstile> ?u")
+proof -
+  have "?T \<turnstile> ({k}\<^sub>\<iota>)" by (auto intro:Ax)
+  hence "?T \<turnstile> k" ..
+  hence "?T \<turnstile> m" by (auto intro:Ax Sdec)
+  from \<open>?T \<turnstile> k\<close> have "?T \<turnstile> ([k]\<^sub>\<iota>)" ..
+  with \<open>?T \<turnstile> m\<close> show ?thesis ..
+qed
+
+
 
 lemma deduce_weaken:
-assumes "G \<turnstile> t " and "G \<subseteq> H "
-shows "H \<turnstile> t "
-  sorry
-(*proof -
-  obtain x where "x \<in> G" sorry
-  with 2 have "x \<in> H" by auto
-*)
+assumes "G \<turnstile> t" and "G \<subseteq> H"
+shows "H \<turnstile> t"
+  using assms
+  by(induction G t rule:deduce.induct) (auto intro:deduce.intros)
+
 
 lemma deduce_cut:
-assumes "insert t H \<turnstile> u " and "H \<turnstile> t "
-shows "H \<turnstile> u "
-  sorry
+assumes  "insert t H \<turnstile> u" and  "H \<turnstile> t" 
+shows "H \<turnstile> u"
+  using assms
+  by(induction "insert t H" u rule:deduce.induct) (auto intro:deduce.intros)
+
 
 end
