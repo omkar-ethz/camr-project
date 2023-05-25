@@ -2,6 +2,8 @@ theory Deduction
   imports Term
 begin
 
+subsection \<open>Assignment 6\<close>
+
 inductive deduce :: "msg set \<Rightarrow> msg \<Rightarrow> bool" ( infix "\<turnstile>" 72)
   where
 (*do we need T \<turnstile> \<iota> as a rule? *)
@@ -56,6 +58,7 @@ shows "H \<turnstile> u"
   using assms
   by(induction "insert t H" u rule:deduce.induct) (auto intro:deduce.intros)
 
+subsection \<open>Assignment 7\<close>
 
 datatype constraint =
 Constraint "msg list" "msg list" "msg" ( "((2_/|_)/ \<Zrres>_) " [67,67,67]66)
@@ -118,5 +121,19 @@ Refl: "cs \<leadsto>\<^emph>[Variable] cs"
 
 lemma "[Const ''a''] | [] \<Zrres> Const ''a''  \<leadsto>\<^sub>1[Variable] []"
   by (auto intro: rer1.intros)
+
+fun simple_constraint :: "constraint \<Rightarrow> bool"
+  where
+"simple_constraint (Constraint M A (Variable x)) = True"
+| "simple_constraint _ = False"
+
+fun simple_constraint_system :: "constraint_system \<Rightarrow> bool"
+  where
+"simple_constraint_system [] = True"
+| "simple_constraint_system (c#cs) = (if simple_constraint c then simple_constraint_system cs else False)"
+
+definition red :: "constraint_system \<Rightarrow> subst_msg set"
+  where
+"red cs = {\<tau> \<circ>\<^sub>s \<sigma> | \<sigma> \<tau> cs'. simple_constraint_system cs' \<and> \<tau> \<in> sol cs' \<and> cs \<leadsto>\<^emph>[\<tau> \<circ>\<^sub>s \<sigma>] cs'}"
 
 end
