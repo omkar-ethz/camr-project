@@ -87,6 +87,9 @@ type_synonym subst_msg = "string \<Rightarrow> msg"
 lift_definition sapply_msg::"subst_msg \<Rightarrow> msg \<Rightarrow> msg" is sapply
   using wf_subst_def wf_term_sapply by blast
 
+lift_definition scomp_msg::"subst_msg \<Rightarrow> subst_msg \<Rightarrow> subst_msg"(infix "\<circ>\<^sub>s" 74) is scomp
+  by (metis scomp.elims wf_subst_def wf_term_sapply)
+
 type_synonym equation_msg = "msg \<times> msg"
 type_synonym system_msg = "equation_msg list"
 
