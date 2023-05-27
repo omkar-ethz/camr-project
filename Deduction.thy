@@ -4,9 +4,12 @@ begin
 
 subsection \<open>Assignment 6\<close>
 
+(*
+  chsp: You could define \<iota> as 'Const "iota"' instead of introducing a new constructor for msg, 
+  which is not necessary.  
+*)
 inductive deduce :: "msg set \<Rightarrow> msg \<Rightarrow> bool" ( infix "\<turnstile>" 72)
   where
-(*do we need T \<turnstile> \<iota> as a rule? *)
 Ax: "u \<in> T \<Longrightarrow> T \<turnstile> u"
 | CompHash: "T \<turnstile> t \<Longrightarrow> T \<turnstile> msg.Hash t"
 | CompPair: "\<lbrakk>T \<turnstile> t1; T \<turnstile> t2\<rbrakk>  \<Longrightarrow> T \<turnstile> msg.Pair t1 t2"
@@ -73,7 +76,7 @@ fun fv_constraint_system::"constraint_system \<Rightarrow> string set" where
 
 fun sapply_constraint::"subst_msg \<Rightarrow> constraint \<Rightarrow> constraint" where
 "sapply_constraint \<sigma> (M | A \<Zrres> t) = map (sapply_msg \<sigma>) M | map  (sapply_msg \<sigma>) A \<Zrres>  sapply_msg \<sigma> t"
-
+                                               
 fun sapply_constraint_system::"subst_msg \<Rightarrow> constraint_system \<Rightarrow> constraint_system" where
 "sapply_constraint_system \<sigma> cs = map (sapply_constraint \<sigma>) cs"
 
@@ -82,19 +85,35 @@ fun sapply_constraint_system::"subst_msg \<Rightarrow> constraint_system \<Right
 definition sol::"constraint_system \<Rightarrow> subst_msg set" where
 "sol cs = {\<sigma> | M A t \<sigma>. (M | A \<Zrres> t) \<in> set(cs) \<longrightarrow> set(map (sapply_msg \<sigma>) (M@A)) \<turnstile> sapply_msg \<sigma> t}"
 
-lemma "sol (cs1@cs2 ) = sol (cs1 ) \<inter> sol (cs2)"
-  sorry
+lemma sol_inter: "sol (cs1@cs2 ) = sol (cs1 ) \<inter> sol (cs2)"
+  apply (auto simp add:sol_def)
+  by (metis Ax Un_absorb all_not_in_conv list.set(2) rev_image_eqI singletonI)
 
-lemma "\<tau> \<in> sol (sapply_constraint_system \<sigma> cs) \<Longrightarrow> scomp_msg \<tau> \<sigma> \<in> sol cs"
-  sorry
+lemma sol_subs: "\<tau> \<in> sol (sapply_constraint_system \<sigma> cs) \<Longrightarrow> scomp_msg \<tau> \<sigma> \<in> sol cs"
+  apply(auto simp add:sol_def)
+   apply (metis Ax all_not_in_conv list.simps(15) rev_image_eqI singletonI sup_idem)
+  apply (metis Ax all_not_in_conv list.simps(15) rev_image_eqI singletonI sup_idem)
+  done
 
 fun is_variable::"msg \<Rightarrow> bool" where
 "is_variable (Variable _) = True"
 | "is_variable _ = False"
 
+(*
+  chsp:
+  - Unifl: Please replace "sapply_msg \<sigma> u = sapply_msg \<sigma> t" by a proposition involving the
+    unification algorithm on messages (as in Figure 2). -- DONE \<checkmark>
+  - Your decomposition rules are not general enough. They assume the the analyzed message in 
+    is at the head of M, whereas there is no such assumption in the set-based version of Fig. 2.
+    Please make sure that the analyzed term may occur in any position of the list M. -- DONE \<checkmark>
+  - I would replace the two instances of "let .. in .." in the rule Ksubl by a rule
+    premise \<lbrakk> y = Variable x \<rbrakk> \<Longrightarrow> ... {u}\<^sub>y ...; then there is no duplication (you could also 
+    have used a single "let .. in .." though) and no need to unfold Let_def. You could even 
+    eliminate more redundancy using \<lbrakk> c = {u}\<^sub>y \<rbrakk> \<Longrightarrow> ... c ... -- DONE \<checkmark>
+*)
 inductive rer1 :: "constraint \<Rightarrow> subst_msg \<Rightarrow> constraint_system \<Rightarrow> bool"
 ("(_)/\<leadsto>\<^sub>1[_]/ (_)" [64,64,64]63) where
-Unifl: "\<lbrakk>\<not> is_variable t; u \<in> set(M) \<union> set(A); sapply_msg \<sigma> u = sapply_msg \<sigma> t\<rbrakk> 
+Unifl: "\<lbrakk>\<not> is_variable t; u \<in> set(M) \<union> set(A); Some \<sigma> = unify_msg [(t,u)]\<rbrakk> 
           \<Longrightarrow> M | A \<Zrres> t \<leadsto>\<^sub>1[\<sigma>] Nil"
 
 | CompHashl: "M | A \<Zrres> (\<h> t) \<leadsto>\<^sub>1[Variable] [M | A \<Zrres> t]"
@@ -103,15 +122,30 @@ Unifl: "\<lbrakk>\<not> is_variable t; u \<in> set(M) \<union> set(A); sapply_ms
 | CompAencl: "M | A \<Zrres> ({t}\<^sub>k) \<leadsto>\<^sub>1[Variable] [M | A \<Zrres> t, M | A \<Zrres> k]"
 | CompSignl: "M | A \<Zrres> ([t]\<^sub>\<iota>) \<leadsto>\<^sub>1[Variable] [M | A \<Zrres> t]"
 
-| Projl: "((\<langle>u,v\<rangle>)#M) | A \<Zrres> t \<leadsto>\<^sub>1[Variable] [(u#v#M) | ((\<langle>u,v\<rangle>)#A) \<Zrres> t]"
-| Sdecl: "((\<lbrace>u\<rbrace>\<^sub>k)#M) | A \<Zrres> t \<leadsto>\<^sub>1[Variable] [(u#M) | ((\<lbrace>u\<rbrace>\<^sub>k)#A) \<Zrres> t, M | ((\<lbrace>u\<rbrace>\<^sub>k)#A) \<Zrres> k]"
-| Adecl: "(({u}\<^sub>\<iota>)#M) | A \<Zrres> t \<leadsto>\<^sub>1[Variable] [(u#M) | ((\<lbrace>u\<rbrace>\<^sub>\<iota>)#A) \<Zrres> t]"
-| Ksubl:  "(let y = Variable x in (({u}\<^sub>y)#M)) | A \<Zrres> t \<leadsto>\<^sub>1[(Variable(x:=i))] 
-            [sapply_constraint (Variable(x:=i)) ((let y = Variable x in (({u}\<^sub>y)#M)) | A \<Zrres> t)]"
+| Projl: "\<lbrakk>c = \<langle>u,v\<rangle>; c \<in> set(M); M' = list (set (M) - {c})\<rbrakk> \<Longrightarrow> 
+            M | A \<Zrres> t \<leadsto>\<^sub>1[Variable] [(u#v#M') | (c#A) \<Zrres> t]"
+| Sdecl: "\<lbrakk>c = \<lbrace>u\<rbrace>\<^sub>k; c \<in> set(M); M' = list (set (M) - {c})\<rbrakk> \<Longrightarrow> 
+            M | A \<Zrres> t \<leadsto>\<^sub>1[Variable] [(u#M') | (c#A) \<Zrres> t, M' | (c#A) \<Zrres> k]"
+| Adecl: "\<lbrakk>c = {u}\<^sub>\<iota>; c \<in> set(M); M' = list (set (M) - {c})\<rbrakk> \<Longrightarrow> 
+            M | A \<Zrres> t \<leadsto>\<^sub>1[Variable] [(u#M') | (c#A) \<Zrres> t]"
+| Ksubl: "\<lbrakk>y = Variable x; {u}\<^sub>y \<in> set(M)\<rbrakk> \<Longrightarrow> 
+            M | A \<Zrres> t \<leadsto>\<^sub>1[(Variable(x:=\<iota>))] [sapply_constraint (Variable(x:=\<iota>)) (M | A \<Zrres> t)]"
+
+(*
+  chsp:
+  Similar set vs list problem as with decomposition rules above. A constraint system in the
+  project description is a set of constraints; here it is a list of constraints. 
+  Left-hand side of rule is fine. On RHS, make sure that the c and cs can appear anywhere in 
+  the ambient list, not only at the beginning. Otherwise, this severely restricts the 
+  non-determinism of the constraint reduction relation: you could always only reduce the first 
+  constraint. -- DONE \<checkmark>
+*)
 
 inductive rer :: "constraint_system \<Rightarrow>subst_msg \<Rightarrow> constraint_system \<Rightarrow> bool"
 ("_/ \<leadsto>[_]/ _ " [73,73,73]72) where
-Context: "c \<leadsto>\<^sub>1[\<sigma>] cs \<Longrightarrow> (c#cs') \<leadsto>[\<sigma>] (cs@cs')"
+Context: "\<lbrakk>c \<leadsto>\<^sub>1[\<sigma>] cs; c \<in> set(A); set(cs) \<subseteq> set(B); set(A) = insert c cs'; 
+            set(B) = set(cs) \<union> ((sapply_constraint \<sigma>) ` cs') \<rbrakk> \<Longrightarrow> A \<leadsto>[\<sigma>] B"
+
 
 inductive rer_star :: "constraint_system \<Rightarrow>subst_msg \<Rightarrow> constraint_system \<Rightarrow> bool"
 ("_/ \<leadsto>\<^emph>[_]/ _ " [73,73,73]72) where
@@ -135,5 +169,26 @@ fun simple_constraint_system :: "constraint_system \<Rightarrow> bool"
 definition red :: "constraint_system \<Rightarrow> subst_msg set"
   where
 "red cs = {\<tau> \<circ>\<^sub>s \<sigma> | \<sigma> \<tau> cs'. simple_constraint_system cs' \<and> \<tau> \<in> sol cs' \<and> cs \<leadsto>\<^emph>[\<tau> \<circ>\<^sub>s \<sigma>] cs'}"
+
+subsection \<open>Assignment 8\<close>
+(*Soundness, lemmas:*)
+
+lemma lemma7: "\<lbrakk>c \<leadsto>\<^sub>1[\<sigma>] cs; \<tau> \<in> sol cs\<rbrakk> \<Longrightarrow>  \<tau> \<circ>\<^sub>s \<sigma> \<in> sol [c]"
+  by(erule rer1.cases) (auto simp add:sol_def)
+
+
+lemma assumes 1: "cs \<leadsto>[\<sigma>] cs'" and 2:"\<tau> \<in> sol cs'" 
+  shows "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol cs"
+proof -
+  obtain c cs1 cs2
+    where 3: "cs = c#cs2"  and 4: "cs' =  cs1 @  (sapply_constraint_system \<sigma> cs2)" 
+  and  5: "c \<leadsto>\<^sub>1[\<sigma>] cs1" using 1 (*apply(rule Context)*) sorry
+  from 2 4 have 6: "\<tau> \<in> sol cs1" and 7: "\<tau> \<in> sol (sapply_constraint_system \<sigma> cs2)" 
+    by (auto simp add: sol_inter)
+  with 5 have "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol [c]" "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol cs2" by (auto intro:lemma7 sol_subs)
+  with 3 sol_inter show ?thesis
+    by (metis IntI append_Cons append_Nil)
+qed
+
 
 end

@@ -90,6 +90,15 @@ lift_definition sapply_msg::"subst_msg \<Rightarrow> msg \<Rightarrow> msg" is s
 lift_definition scomp_msg::"subst_msg \<Rightarrow> subst_msg \<Rightarrow> subst_msg"(infix "\<circ>\<^sub>s" 74) is scomp
   by (metis scomp.elims wf_subst_def wf_term_sapply)
 
+lemma [simp]: "\<tau> \<circ>\<^sub>s Variable = \<tau>" by (simp add: scomp_msg_def) auto
+
+
+lemma Variable_term: "sapply_msg Variable t = t"
+  by(simp add: sapply_msg_def map_fun_def comp_def var_term)
+
+lemma [simp]: "Variable \<circ>\<^sub>s \<tau> = \<tau>" 
+  by(auto simp add: scomp_msg_def map_fun_def comp_def var_term)
+
 type_synonym equation_msg = "msg \<times> msg"
 type_synonym system_msg = "equation_msg list"
 
