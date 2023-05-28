@@ -99,6 +99,10 @@ lemma Variable_term: "sapply_msg Variable t = t"
 lemma [simp]: "Variable \<circ>\<^sub>s \<tau> = \<tau>" 
   by(auto simp add: scomp_msg_def map_fun_def comp_def var_term)
 
+lemma scomp_msg_assoc: "scomp_msg (\<sigma> \<circ>\<^sub>s \<tau>) \<rho> =  \<sigma> \<circ>\<^sub>s (\<tau> \<circ>\<^sub>s \<rho>)"
+  sorry
+
+
 type_synonym equation_msg = "msg \<times> msg"
 type_synonym system_msg = "equation_msg list"
 

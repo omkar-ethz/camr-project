@@ -89,6 +89,12 @@ lemma sol_inter: "sol (cs1@cs2 ) = sol (cs1 ) \<inter> sol (cs2)"
   apply (auto simp add:sol_def)
   by (metis Ax Un_absorb all_not_in_conv list.set(2) rev_image_eqI singletonI)
 
+lemma sol_inter_gen: "\<lbrakk>list (set x) = x\<rbrakk> \<Longrightarrow> sol (list (cs1 \<union> cs2)) = sol (list cs1) \<inter> sol (list cs2)"
+  apply(auto simp add: sol_def sol_inter)
+    apply (metis Ax UnI1 all_not_in_conv image_iff list.simps(15) singletonI)
+   apply (metis Ax all_not_in_conv list.simps(15) rev_image_eqI singletonI sup_idem)
+  by (metis Ax Un_absorb all_not_in_conv list.simps(15) rev_image_eqI singletonI)
+
 lemma sol_subs: "\<tau> \<in> sol (sapply_constraint_system \<sigma> cs) \<Longrightarrow> scomp_msg \<tau> \<sigma> \<in> sol cs"
   apply(auto simp add:sol_def)
    apply (metis Ax all_not_in_conv list.simps(15) rev_image_eqI singletonI sup_idem)
@@ -166,9 +172,14 @@ fun simple_constraint_system :: "constraint_system \<Rightarrow> bool"
 "simple_constraint_system [] = True"
 | "simple_constraint_system (c#cs) = (if simple_constraint c then simple_constraint_system cs else False)"
 
+
+fun simple_cs::"constraint_system \<Rightarrow> bool" where
+"simple_cs cs = (\<forall>c. c\<in>set cs \<longrightarrow> simple_constraint c)"
+
+
 definition red :: "constraint_system \<Rightarrow> subst_msg set"
   where
-"red cs = {\<tau> \<circ>\<^sub>s \<sigma> | \<sigma> \<tau> cs'. simple_constraint_system cs' \<and> \<tau> \<in> sol cs' \<and> cs \<leadsto>\<^emph>[\<tau> \<circ>\<^sub>s \<sigma>] cs'}"
+"red cs = {\<tau> \<circ>\<^sub>s \<sigma> | \<sigma> \<tau> cs'. simple_constraint_system cs' \<and> \<tau> \<in> sol cs' \<and> cs \<leadsto>\<^emph>[\<sigma>] cs'}"
 
 subsection \<open>Assignment 8\<close>
 (*Soundness, lemmas:*)
@@ -176,19 +187,58 @@ subsection \<open>Assignment 8\<close>
 lemma lemma7: "\<lbrakk>c \<leadsto>\<^sub>1[\<sigma>] cs; \<tau> \<in> sol cs\<rbrakk> \<Longrightarrow>  \<tau> \<circ>\<^sub>s \<sigma> \<in> sol [c]"
   by(erule rer1.cases) (auto simp add:sol_def)
 
+thm Context
 
-lemma assumes 1: "cs \<leadsto>[\<sigma>] cs'" and 2:"\<tau> \<in> sol cs'" 
+(*lemma assumes 1: "cs \<leadsto>[\<sigma>] cs'" and 2:"\<tau> \<in> sol cs'" (*and xx: "list (set t) = t"*)
   shows "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol cs"
 proof -
-  obtain c cs1 cs2
-    where 3: "cs = c#cs2"  and 4: "cs' =  cs1 @  (sapply_constraint_system \<sigma> cs2)" 
-  and  5: "c \<leadsto>\<^sub>1[\<sigma>] cs1" using 1 (*apply(rule Context)*) sorry
-  from 2 4 have 6: "\<tau> \<in> sol cs1" and 7: "\<tau> \<in> sol (sapply_constraint_system \<sigma> cs2)" 
+  from 1 obtain c cs1 cs2 where 3: "c \<leadsto>\<^sub>1[\<sigma>] cs1" and 4: "c \<in> set(cs)" and
+5: "set cs1 \<subseteq> set cs'" and 6:"set cs = insert c cs2" and 7:"set cs' = set cs1 \<union> sapply_constraint \<sigma> ` cs2"
+    by(auto intro:rer.cases)
+  (*from 6 obtain cs3 where "cs3 = list cs2" "cs = c# cs3" *) 
+  from 2 7 have 9: "\<tau> \<in> sol cs1" and 10: "\<tau> \<in> sol (sapply_constraint_system \<sigma> (list cs2))" 
+    apply (auto simp add: sol_inter)
+    using sol_def apply auto[1]
+    apply(simp add: sol_def)
+    apply auto
+    by (metis Ax imageI insert_iff list.simps(15) sup.idem)
+  with 3 have  "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol [c]" "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol (list cs2)" by (auto intro:lemma7 sol_subs)
+  with 6 sol_inter_gen show ?thesis 
+*)
+
+lemma lemma8: 
+  assumes 1: "cs \<leadsto>[\<sigma>] cs'" and 2:"\<tau> \<in> sol cs'" 
+  shows "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol cs"
+proof -
+  from 1 obtain c cs1 cs2
+    where 3: "cs = c#cs2"  
+      and 4: "cs' =  cs1 @  (sapply_constraint_system \<sigma> cs2)" 
+      and  5: "c \<leadsto>\<^sub>1[\<sigma>] cs1" (*by(auto intro:rer.cases)*) sorry
+  from 2 4 have 6: "\<tau> \<in> sol cs1" 
+    and 7: "\<tau> \<in> sol (sapply_constraint_system \<sigma> cs2)" 
     by (auto simp add: sol_inter)
-  with 5 have "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol [c]" "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol cs2" by (auto intro:lemma7 sol_subs)
+  with 5 have "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol [c]" 
+    and "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol cs2" 
+    by (auto intro:lemma7 sol_subs)
   with 3 sol_inter show ?thesis
     by (metis IntI append_Cons append_Nil)
 qed
 
+lemma lemma9: 
+  assumes "cs \<leadsto>\<^emph>[\<sigma>] cs'" 
+    and "simple_constraint_system cs'" 
+    and "\<tau> \<in> sol cs'" 
+  shows "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol cs"
+  using assms
+proof(induction cs \<sigma> cs' rule:rer_star.induct)
+  case (Trans cs \<rho> cs' \<rho>' cs'')
+  then have "\<tau> \<circ>\<^sub>s \<rho>' \<in> sol cs'" by auto
+  with \<open>cs \<leadsto>[\<rho>] cs'\<close> have "(\<tau> \<circ>\<^sub>s \<rho>') \<circ>\<^sub>s \<rho> \<in> sol cs" 
+    using lemma8  by auto
+  then show ?case by (simp add: scomp_msg_assoc)
+qed simp
+
+lemma sound_constraint_solve: "red cs \<subseteq> sol cs"
+  using lemma9 by (auto simp add: red_def)
 
 end
