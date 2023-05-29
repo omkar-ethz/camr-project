@@ -159,9 +159,6 @@ Refl: "cs \<leadsto>\<^emph>[Variable] cs"
 | Trans: "\<lbrakk>cs \<leadsto>[\<sigma>] cs''; cs'' \<leadsto>\<^emph>[\<tau>] cs'\<rbrakk> \<Longrightarrow> cs \<leadsto>\<^emph>[\<tau> \<circ>\<^sub>s \<sigma>] cs'"
 
 
-lemma "[Const ''a''] | [] \<Zrres> Const ''a''  \<leadsto>\<^sub>1[Variable] []"
-  by (auto intro: rer1.intros)
-
 fun simple_constraint :: "constraint \<Rightarrow> bool"
   where
 "simple_constraint (Constraint M A (Variable x)) = True"
@@ -171,11 +168,6 @@ fun simple_constraint_system :: "constraint_system \<Rightarrow> bool"
   where
 "simple_constraint_system [] = True"
 | "simple_constraint_system (c#cs) = (if simple_constraint c then simple_constraint_system cs else False)"
-
-
-fun simple_cs::"constraint_system \<Rightarrow> bool" where
-"simple_cs cs = (\<forall>c. c\<in>set cs \<longrightarrow> simple_constraint c)"
-
 
 definition red :: "constraint_system \<Rightarrow> subst_msg set"
   where
@@ -213,7 +205,7 @@ proof -
   from 1 obtain c cs1 cs2
     where 3: "cs = c#cs2"  
       and 4: "cs' =  cs1 @  (sapply_constraint_system \<sigma> cs2)" 
-      and  5: "c \<leadsto>\<^sub>1[\<sigma>] cs1" (*by(auto intro:rer.cases)*) sorry
+      and  5: "c \<leadsto>\<^sub>1[\<sigma>] cs1" sorry
   from 2 4 have 6: "\<tau> \<in> sol cs1" 
     and 7: "\<tau> \<in> sol (sapply_constraint_system \<sigma> cs2)" 
     by (auto simp add: sol_inter)
@@ -238,7 +230,7 @@ proof(induction cs \<sigma> cs' rule:rer_star.induct)
   then show ?case by (simp add: scomp_msg_assoc)
 qed simp
 
-lemma sound_constraint_solve: "red cs \<subseteq> sol cs"
+theorem sound_constraint_solve: "red cs \<subseteq> sol cs"
   using lemma9 by (auto simp add: red_def)
 
 end

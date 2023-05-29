@@ -39,6 +39,8 @@ fun embed :: "msg \<Rightarrow> (symbol, string) term " where
 | "embed (msg.Aenc t u) = Fun symbol.Aenc [embed t, embed u]"
 | "embed (msg.Sign t u) = Fun symbol.Sign [embed t, embed u]"
 
+value "embed ({(\<langle>Const ''a'', Variable ''b''\<rangle>)}\<^sub>\<iota>)"
+
 fun msg_of_term :: "(symbol, string) term \<Rightarrow> msg" where
 "msg_of_term (Var v) = Variable v"
 |  "msg_of_term (Fun (symbol.Const c) []) = msg.Const c"
@@ -48,6 +50,8 @@ fun msg_of_term :: "(symbol, string) term \<Rightarrow> msg" where
 | "msg_of_term (Fun symbol.Senc [t,u]) =  msg.Senc (msg_of_term t) (msg_of_term u)"
 | "msg_of_term (Fun symbol.Aenc [t,u]) =  msg.Aenc (msg_of_term t) (msg_of_term u)"
 | "msg_of_term (Fun symbol.Sign [t,u]) =  msg.Sign (msg_of_term t) (msg_of_term u)"
+
+value "msg_of_term (Fun symbol.Aenc [Fun symbol.Pair [Fun (symbol.Const ''a'') [], Var ''b''], Fun iota []])"
 
 lemma wf_term_embed [simp]: "wf_term arity (embed msg)"
   by(induction msg) simp_all
@@ -61,7 +65,7 @@ lemma embed_msg_of_term [simp]: "wf_term arity t \<Longrightarrow> embed (msg_of
   using arity.elims numerals(2) by auto
 
 lemma wf_subst_embed [simp]: "wf_subst arity (embed \<circ> \<sigma>)"
-  using wf_subst_def wf_term_embed by fastforce
+  using  wf_term_embed by fastforce
 
 lemma msg_of_term_inject:
 "\<lbrakk>wf_term arity t1; wf_term arity t2 \<rbrakk> 
@@ -85,10 +89,10 @@ lemma "fv_msg (msg.Variable ''a'') = {''a''}"
 type_synonym subst_msg = "string \<Rightarrow> msg"
 
 lift_definition sapply_msg::"subst_msg \<Rightarrow> msg \<Rightarrow> msg" is sapply
-  using wf_subst_def wf_term_sapply by blast
+  by (simp add: wf_term_sapply)
 
 lift_definition scomp_msg::"subst_msg \<Rightarrow> subst_msg \<Rightarrow> subst_msg"(infix "\<circ>\<^sub>s" 74) is scomp
-  by (metis scomp.elims wf_subst_def wf_term_sapply)
+  by (simp add:  wf_term_sapply)
 
 lemma [simp]: "\<tau> \<circ>\<^sub>s Variable = \<tau>" by (simp add: scomp_msg_def) auto
 
@@ -113,7 +117,7 @@ fun embed_sys::"system_msg \<Rightarrow> (symbol,string) system" where
 "embed_sys sys = map embed_eqn sys"
 
 lift_definition sapply_eq_msg::"subst_msg \<Rightarrow> equation_msg \<Rightarrow> equation_msg" is sapply_eq
-  by (simp add: pred_prod_beta sapply_eq_def wf_subst_def wf_term_sapply)
+  by (simp add: pred_prod_beta sapply_eq_def  wf_term_sapply)
 
 (*lift_definition sapply_sys_msg::"subst_msg \<Rightarrow> system_msg \<Rightarrow> system_msg" is sapply_sys
   *)   
@@ -126,12 +130,32 @@ lift_definition unifiess_msg::"subst_msg \<Rightarrow> system_msg \<Rightarrow> 
 
 (*Why abstraction violation for subst_to_subst_msg when generating code for unify_msg?*)
 fun subst_to_subst_msg::"(symbol, string) subst \<Rightarrow> subst_msg" where
-"subst_to_subst_msg \<sigma> = (\<lambda>s. msg_of_term (\<sigma> s))"
+"subst_to_subst_msg \<sigma> s =  msg_of_term (\<sigma> s)"
+
+
+(*lemma "wf_subst arity \<sigma> \<Longrightarrow> unifies_msg (subst_to_subst_msg \<sigma>) eqn \<longleftrightarrow> unifies \<sigma> (embed_eqn eqn)"
+  unfolding unifies_msg_def map_fun_def map_prod_def comp_def 
+  apply(simp)
+  apply auto
+   apply (metis case_prod_unfold embed_eqn.simps surjective_pairing)
+  by (metis case_prod_Pair_iden case_prod_map_prod embed_eqn.elims map_prod_simp)
+*)
 
 fun unify_msg::"system_msg \<Rightarrow> subst_msg option" where
 "unify_msg sys = (case (unify (embed_sys sys)) of Some \<sigma> \<Rightarrow> Some (subst_to_subst_msg \<sigma>) | None \<Rightarrow> None)"
 
-lemma unify_msg_correct: "unify_msg sys = (Some \<sigma>) \<Longrightarrow> unifiess_msg \<sigma> sys"
-  sorry
+lemma unify_msg_correct: 
+  assumes "unify_msg sys = (Some \<sigma>)" 
+  shows "unifiess_msg \<sigma> sys"
+proof -
+  from assms
+  obtain \<tau> where "unify (embed_sys sys) = Some \<tau>" by fastforce
+  hence "unifiess \<tau> (embed_sys sys)" using unify_correct by blast
+  from assms have "\<sigma> = subst_to_subst_msg \<tau>" using \<open>unify (embed_sys sys) = Some \<tau>\<close> by auto
+  thm unifies_msg_def
+  with assms show ?thesis unfolding unifiess_msg_def map_fun_def comp_def map_prod_def 
+    using \<open>unifiess \<tau> (embed_sys sys)\<close>
+    sorry
+qed
 
 end

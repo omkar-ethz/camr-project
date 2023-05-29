@@ -127,12 +127,32 @@ fun unifies :: "('f,'v) subst \<Rightarrow> ('f,'v) equation \<Rightarrow> bool"
 value "let \<sigma>=(\<lambda>x.(if x = ''b'' then Var ''a'' else Var x)) 
   in unifies \<sigma> (Fun f [Var ''a'', Var ''b''], Fun f [Var ''b'', Var ''a''])"
 
-(*fun unifiess :: "('f,'v) subst \<Rightarrow> ('f,'v) system \<Rightarrow> bool" where
-  "unifiess \<sigma> eqs = fold (\<and>) (map (unifies \<sigma>) eqs) True"*)
-
 fun unifiess :: "('f,'v) subst \<Rightarrow> ('f,'v) system \<Rightarrow> bool" where
   "unifiess \<sigma> [] = True"
 |  "unifiess \<sigma> (eq#eqs) = (unifies \<sigma> eq \<and> unifiess \<sigma> eqs)"
+
+(*Some auxiliary lemmas to help with soundness proof*)
+lemma unifies_hd: "unifiess \<sigma> (eq#eqs) \<Longrightarrow> unifies \<sigma> eq" by auto
+lemma unifiess_tail: "unifiess \<sigma> (eq#eqs) \<Longrightarrow> unifiess \<sigma> eqs" by auto
+lemma unifiess_append1: "unifiess \<sigma> (eq1@eq2) \<Longrightarrow> unifiess \<sigma> eq1" by(induction eq1) simp_all
+lemma unifiess_append2: "unifiess \<sigma> (eq1@eq2) \<Longrightarrow> unifiess \<sigma> eq2" by(induction eq1) simp_all
+
+lemma temp1: "unifiess \<sigma> (zip [] []) = True" by auto
+lemma temp: "unifiess \<sigma> (zip (x#xs) (y#ys)) = (unifies \<sigma> (x,y) \<and> unifiess \<sigma> (zip xs ys))" by auto
+lemma unif_alt[simp]: "unifiess \<sigma> xs = (\<forall>x\<in>set(xs). unifies \<sigma> x)" by (induction xs) simp_all
+
+lemma unifies_Fun: "unifiess \<sigma> ((Fun f xs, Fun g ys)#eqs) \<Longrightarrow> f=g"
+  by simp
+
+lemma unifies_Fun_arg_len: "unifiess \<sigma> ((Fun f xs, Fun g ys)#eqs) \<Longrightarrow> length xs = length ys"
+  apply (induction \<sigma> eqs rule: unifiess.induct)
+   apply simp_all
+  by (metis length_map)
+
+lemma unifies_Fun_arg: "unifies \<sigma> (Fun f xs, Fun g ys) \<longleftrightarrow> unifiess \<sigma> (zip xs ys)"
+  apply (induction \<sigma> "(zip xs ys)" rule: unifiess.induct)
+   apply simp
+  sorry
 
 (* asserts that \<sigma> is more general than \<tau> *)
 definition is_more_general :: "('f,'v) subst \<Rightarrow> ('f,'v) subst \<Rightarrow> bool" where
@@ -149,12 +169,11 @@ lemma unifies_sapply_eq: "unifies \<sigma> (sapply_eq \<tau> eq) \<longleftright
   by (metis sapply_scomp_distrib surjective_pairing unifies.simps)
 
 lemma unifies_sapply_sys: "unifiess \<sigma> (sapply_sys \<tau> sys) \<longleftrightarrow> unifiess (\<sigma> \<circ>\<^sub>s \<tau>) sys"
-(*sledgehammer finds a proof with smt, 
-todo find a better proof as smt is not allowed (grading guidelines)*)
-  sorry
+  unfolding sapply_sys_def apply simp
+  using unifies_sapply_eq by fastforce
 
 
-  subsection \<open>Assignment 3\<close>
+subsection \<open>Assignment 3\<close>
 
 fun size_term :: "('f,'v) term \<Rightarrow> nat" where
 "size_term (Var _)= 0"
@@ -163,6 +182,21 @@ fun size_term :: "('f,'v) term \<Rightarrow> nat" where
 fun size_term_sys :: "('f,'v) system \<Rightarrow> nat" where
 "size_term_sys [] = 0"
 | "size_term_sys ((t,u) # eqs) = size_term t + size_term_sys eqs"
+
+(*more lemmas to help with termination proof:*)
+lemma finite_fv [termination_simp]: "finite (fv x)" by (induction rule:fv.induct) simp_all 
+
+lemma finite_fv_sys [termination_simp]: "finite (fv_sys eqs)"
+  unfolding fv_sys_def fv_eq_def
+  using finite_fv by auto
+
+lemma card_fv_sys: "x \<notin> fv t \<Longrightarrow>
+    card (fv_sys (sapply_sys (Var(x := t)) eqs))
+    < card (fv_sys ((Var x, t) # eqs))"
+  apply(auto simp add: fv_sapply_sys finite_fv_sys)
+  using fv_sapply_sys finite_fv_sys
+  sorry
+
 
 (*
   chsp: in equation Fun: check that the xs and ys have the same length
@@ -185,62 +219,136 @@ termination
   (* chsp: note that (\<lambda>sys. size_term_sys sys) will eta-reduce to size_term_sys *)
   apply(relation "measures [(\<lambda>sys. card (fv_sys sys)), size_term_sys, size]")
       apply simp
+     apply(simp add: card_fv_sys)
   thm card_mono psubset_card_mono
   sorry
-
 
 value "unify [(Var x, Fun f []), (Fun g [Var x], Fun g [Fun f []])]"
 
 (*Soundness:
 (i) If unify returns a substitution, it is a unifier.
 (ii) If unify returns a substitution \<sigma> and there is another unifier \<tau> , then
-\<tau> = \<rho> ◦s \<sigma> for some \<rho>.*)
+\<tau> = \<rho> \<circ>\<^sub>s \<sigma> for some \<rho>.*)
 
-lemma unify_correct: "unify sys = (Some \<sigma>) \<Longrightarrow> unifiess \<sigma> sys"
-  apply(induction sys rule:unify.induct)
-     apply(simp)
-  subgoal sorry
-  subgoal by simp
-  subgoal sorry
-  done
+(*Auxiliary lemma for case Var of \<open>unify\<close>*)
+lemma unify_case_Var: assumes 
+1:"\<lbrakk>x \<notin> fv t; unify (sapply_sys (Var(x := t)) eqs) = Some \<sigma>\<rbrakk>
+    \<Longrightarrow> unifiess \<sigma> (sapply_sys (Var(x := t)) eqs)"
+    and 2: "\<lbrakk>\<not> x \<notin> fv t; Var x = t; unify eqs = Some \<sigma>\<rbrakk> \<Longrightarrow> unifiess \<sigma> eqs"
+    and 3: "unify ((Var x, t) # eqs) = Some \<sigma>"
+  shows "unifiess \<sigma> ((Var x, t) # eqs)"
+proof(cases "x \<notin> fv t")
+  case True (*case Unify of the unification algorithm*)
+  let ?\<sigma>' = "\<sigma> \<circ>\<^sub>s (Var(x := t))"
+  have "Var(x := t) \<cdot> Var x = Var(x := t) \<cdot> t"
+    by (metis True fun_upd_other fun_upd_same sapply.simps(1) sapply_cong var_term)
+  hence "?\<sigma>' \<cdot> (Var x) = ?\<sigma>' \<cdot> t" by (simp add: sapply_scomp_distrib)
+  with 3 have "unify (sapply_sys (Var(x := t)) eqs) = Some \<sigma>" sorry
+  hence "unifiess \<sigma> (sapply_sys (Var(x := t)) eqs)"
+    using "1" True by blast
+  then have "unifiess ?\<sigma>' eqs" 
+    using unifies_sapply_sys by blast
+  then show ?thesis sorry
+next
+  case False (*case Simp of the unification algorithm*)
+  from 2 have "unifiess \<sigma> eqs"
+    by (metis "3" False Unification.Var option.discI)
+  with 2 have \<open>Var x = t\<close> using "3" False by force 
+  with \<open>unifiess \<sigma> eqs\<close> show ?thesis by auto
+qed 
+
+
+theorem unify_correct: "unify sys = (Some \<sigma>) \<Longrightarrow> unifiess \<sigma> sys"
+proof(induction sys rule:unify.induct)
+  case (2 x t eqs)
+  thus ?case using unify_case_Var by fast
+next
+  case (4 f xs g ys eqs)
+  from 4 have \<open>f=g\<close> by (metis Unification.Fun option.distinct(1))
+  from 4 have \<open>length xs = length ys\<close> by (metis Unification.Fun option.distinct(1))
+  from 4 have \<open>unify (zip xs ys @ eqs) = Some \<sigma>\<close> by (simp add: \<open>f = g\<close> \<open>length xs = length ys\<close>)
+  with \<open>f = g\<close> \<open>length xs = length ys\<close> 4 have "unifiess \<sigma> (zip xs ys @ eqs)" by auto
+  have "unifiess \<sigma> ((Fun f xs, Fun g ys) # eqs) = (unifies \<sigma> (Fun f xs, Fun g ys) \<and> unifiess \<sigma> eqs)" by simp
+  from \<open>unifiess \<sigma> (zip xs ys @ eqs)\<close> have "unifiess \<sigma> (zip xs ys)" by (auto intro:unifiess_append1)
+  from \<open>f = g\<close> \<open>length xs = length ys\<close> \<open>unifiess \<sigma> (zip xs ys)\<close> 
+    have "unifies \<sigma> (Fun f xs, Fun g ys)" using unifies_Fun_arg by metis
+  hence  11: "unifiess \<sigma> ((Fun f xs, Fun g ys) # eqs) = unifiess \<sigma> eqs" by simp
+  from \<open>unifiess \<sigma> (zip xs ys @ eqs)\<close> have 22: "unifiess \<sigma> eqs" by (auto intro:unifiess_append2)
+  from 11 22 show ?case by auto
+qed auto (*Swap and base case go away by auto*)
 
 lemma unify_mgu: "\<lbrakk>unify sys = (Some \<sigma>); unifiess \<tau> sys; \<tau> \<noteq> \<sigma>\<rbrakk> \<Longrightarrow> \<exists>\<rho>. \<tau> = \<rho> \<circ>\<^sub>s \<sigma>"
   sorry
 
-subsection \<open>Assignment 4\<close>
 
-value "fold (+) ([1,2,3]) (0::nat)"
+lemma lemma2: "\<exists>\<tau>. unifiess \<tau> sys \<Longrightarrow> unify sys \<noteq> None"
+proof(induction rule:unify.induct)
+  case (2 x t eqs)
+  then obtain \<tau> where "unifiess \<tau> ((Var x, t) # eqs)" by auto
+  then show ?case sorry
+next
+  case (3 v va x eqs)
+  then show ?case
+    by (metis Unification.Swap unifies.simps unifiess.simps(2))
+next
+  case (4 f xs g ys eqs)
+  from 4(2) have "f = g" by simp
+  from 4 obtain \<tau> where "unifiess \<tau> ((Fun f xs, Fun g ys) # eqs)" by auto
+  then have \<open>length xs = length ys\<close>  using unifies_Fun_arg_len by simp
+  from \<open>f = g\<close> \<open>length xs = length ys\<close> 4(2) have "unify (zip xs ys @ eqs) \<noteq> None" 
+    using 4(1) unifies_Fun_arg by fastforce
+  then show ?case using unifies_Fun_arg by (simp add: \<open>f = g\<close> \<open>length xs = length ys\<close>)
+qed simp
+
+theorem unify_complete: "\<exists>\<tau>. unifiess \<tau> sys \<Longrightarrow> \<exists>\<sigma>. unify sys = Some \<sigma>"
+  using lemma2  by auto
+
+subsection \<open>Assignment 4\<close>
 
 fun wf_term :: "('f \<Rightarrow> nat) \<Rightarrow> ('f,'v) term \<Rightarrow> bool" where
 "wf_term ar (Var _) = True"
-| "wf_term ar (Fun f ts) =  ((ar f  = size ts) \<and> (fold (\<and>) (map (wf_term ar) ts) True))"
+| "wf_term ar (Fun f ts) =  ((ar f  = size ts) \<and> (\<forall>t\<in>set(ts). wf_term ar t))"
 
 value "wf_term (\<lambda>a.2) (Fun a [Var (1::nat), (Fun b [Var (1::nat), Var c])])"
 
-definition wf_subst :: "('f \<Rightarrow> nat) \<Rightarrow> ('f,'v) subst \<Rightarrow> bool " where
+fun wf_subst :: "('f \<Rightarrow> nat) \<Rightarrow> ('f,'v) subst \<Rightarrow> bool " where
 "wf_subst ar \<sigma>  = (\<forall>x. wf_term ar (\<sigma> x))"
-(*"wf_subst ar \<sigma> = (False \<notin> wf_term ar ` sran \<sigma>)" *)
-(*not executable as sran and sdom is not executable in general, 
-only executable when 'v is a finite type which is the expected case*)
 
-term "wf_subst (\<lambda>a.1) (\<lambda>x.(Var x))"
+fun wf_eq::"('f \<Rightarrow> nat) \<Rightarrow> ('f,'v) equation \<Rightarrow> bool" where
+"wf_eq ar (u,t) = (wf_term ar u \<and> wf_term ar t)"
 
-lemma [simp]:
-  assumes "wf_subst ar \<sigma>"
-  fixes x
-  shows "wf_term ar (\<sigma> x)"
-  using assms by (simp add:wf_subst_def)
+fun wf_eqs::"('f \<Rightarrow> nat) \<Rightarrow> ('f,'v) system \<Rightarrow> bool" where
+"wf_eqs ar sys = (\<forall>eq\<in>set sys. wf_eq ar eq)"
 
 lemma wf_term_sapply:
 "\<lbrakk>wf_term arity t; wf_subst arity \<sigma>\<rbrakk> \<Longrightarrow> wf_term arity (\<sigma> \<cdot> t)"
-  using wf_subst_def
   sorry
-  (*by (metis sapply.simps(1) wf_term.elims(1) wf_term.simps(2))*)
 
 lemma wf_subst_scomp:
 "\<lbrakk>wf_subst arity \<sigma>; wf_subst arity \<tau>\<rbrakk> \<Longrightarrow> wf_subst arity (\<sigma> \<circ>\<^sub>s \<tau>)"
   using wf_term_sapply
-  by (metis scomp.elims wf_subst_def)
+  by (metis scomp.elims wf_subst.elims(1))
 
+lemma wf_fun_eq: "wf_eqs arity ((Fun f xs, Fun g ys) # eqs) \<Longrightarrow> wf_eqs arity (zip xs ys @ eqs)"
+  sorry
+
+lemma wf_subst_unify:
+"\<lbrakk>unify eqs = Some \<sigma>; wf_eqs arity eqs\<rbrakk> \<Longrightarrow> wf_subst arity \<sigma>"
+proof(induction eqs rule:unify.induct)
+  case 1
+  then show ?case by simp
+next
+  case (2 x t eqs)
+  then show ?case sorry
+next
+  case (3 v va x eqs)
+  then show ?case by simp
+next
+  case (4 f xs g ys eqs)
+  from 4 have p1: \<open>f=g\<close> by (metis Unification.Fun option.distinct(1))
+  from 4 have p2: \<open>length xs = length ys\<close> by (metis Unification.Fun option.distinct(1))
+  from 4 have p3: \<open>unify (zip xs ys @ eqs) = Some \<sigma>\<close> by (simp add: \<open>f = g\<close> \<open>length xs = length ys\<close>)
+  with p1 p2 4  show ?case using wf_fun_eq by fast
+qed
 
 end
