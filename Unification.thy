@@ -238,7 +238,7 @@ lemma unify_case_Var: assumes
     and 3: "unify ((Var x, t) # eqs) = Some \<sigma>"
   shows "unifiess \<sigma> ((Var x, t) # eqs)"
 proof(cases "x \<notin> fv t")
-  case True (*case Unify of the \<open>unify\<close>*)
+  case True (*case Unify of the \<open>unify\<close>, could not prove*)
   let ?\<sigma>' = "\<sigma> \<circ>\<^sub>s (Var(x := t))"
   have "Var(x := t) \<cdot> Var x = Var(x := t) \<cdot> t"
     by (metis True fun_upd_other fun_upd_same sapply.simps(1) sapply_cong var_term)
@@ -320,7 +320,7 @@ fun wf_eq::"('f \<Rightarrow> nat) \<Rightarrow> ('f,'v) equation \<Rightarrow> 
 fun wf_eqs::"('f \<Rightarrow> nat) \<Rightarrow> ('f,'v) system \<Rightarrow> bool" where
 "wf_eqs ar sys = (\<forall>eq\<in>set sys. wf_eq ar eq)"
 
-lemma wf_subst_varp[simp]:
+lemma wf_subst_var[simp]:
   fixes x
   assumes "wf_subst arity \<sigma>"
   shows "wf_term arity (\<sigma> x)"
@@ -346,11 +346,54 @@ lemma wf_fun_eqs: "wf_eqs arity ((Fun f xs, Fun g ys)#eqs) \<Longrightarrow> wf_
   using wf_eq1 wf_eq2
   by (metis UnE set_append wf_eqs.elims(1) wf_fun_eq)
 
+thm unify.induct
+
+lemma temp_unproved_lemma: "\<lbrakk> x \<notin> fv t; unify ((Var x, t) # eqs) = Some \<sigma>\<rbrakk> 
+          \<Longrightarrow> unify (sapply_sys (Var(x := t)) eqs) = Some \<sigma>"
+proof(induction "((Var x, t) # eqs)" rule:unify.induct)
+  case 2
+  obtain \<sigma>' where 1: "unify ((Var x, t) # eqs) = Some (\<sigma>' \<circ>\<^sub>s Var(x:=t))"
+    by (metis (no_types, lifting) "2.prems"(1) "2.prems"(2) Unification.Var option.case_eq_if option.distinct(1))
+  have "Var(x := t) \<cdot> Var x = Var(x := t) \<cdot> t"
+    by (metis 2(3) fun_upd_other fun_upd_same sapply.simps(1) sapply_cong var_term)
+  (*hence "\<sigma>' \<cdot> (Var x) = \<sigma>' \<cdot> t" by (simp add: sapply_scomp_distrib)*)
+  have "\<sigma>' \<circ>\<^sub>s Var(x:=t) = \<sigma>" using \<open>unify ((Var x, t) # eqs) = Some \<sigma>\<close> \<open>unify ((Var x, t) # eqs) = Some (\<sigma>' \<circ>\<^sub>s Var(x:=t))\<close> by simp
+  from 1 \<open>unify ((Var x, t) # eqs) = Some \<sigma>\<close> have "unify (sapply_sys (Var(x := t)) eqs) = Some \<sigma>'" sorry
+  thus ?thesis sorry
+qed
+
+lemma wf_subst_1: "\<lbrakk>x \<notin> fv t; wf_term ar t\<rbrakk> \<Longrightarrow> wf_subst ar (Var(x := t))" by simp
+
+lemma wf_eqs_var_sapply: assumes "x \<notin> fv t" "wf_eqs arity ((Var x, t) # eqs)"
+shows "wf_eqs arity (sapply_sys (Var(x := t)) eqs)"
+proof -
+  have "wf_eq arity (Var x,t)" using \<open>wf_eqs arity ((Var x, t) # eqs)\<close> by simp
+  hence "wf_term arity t" by simp
+  hence 1: "wf_subst arity (Var(x := t))" using wf_subst_1 by simp
+  with assms(2) show ?thesis unfolding sapply_sys_def sapply_eq_def using  wf_term_sapply
+    by fastforce
+qed
+
 lemma wf_subst_unify:
 "\<lbrakk>unify eqs = Some \<sigma>; wf_eqs arity eqs\<rbrakk> \<Longrightarrow> wf_subst arity \<sigma>"
 proof(induction eqs rule:unify.induct)
   case (2 x t eqs)
-  then show ?case sorry
+  thm 2
+  then show ?case 
+  proof(cases  "x \<notin> fv t") (*case Unify*)
+    case True
+    from 2(3) True have "unify (sapply_sys (Var(x := t)) eqs) = Some \<sigma>" 
+      using temp_unproved_lemma by fast
+    moreover from 2(4) True have "wf_eqs arity (sapply_sys (Var(x := t)) eqs)" 
+      using wf_eqs_var_sapply by metis
+    ultimately show ?thesis using 2(1) True by blast
+  next (*case Simp*)
+    case False
+    from False 2(3) have "Var x = t" by fastforce
+    moreover with False 2(3) have "unify eqs = Some \<sigma>" by auto
+    moreover from 2(4) have "wf_eqs arity eqs" by simp
+    ultimately show ?thesis using False 2(2) by auto
+  qed
 next
   case (4 f xs g ys eqs)
   from 4 have p1: \<open>f=g\<close> by (metis Unification.Fun option.distinct(1))

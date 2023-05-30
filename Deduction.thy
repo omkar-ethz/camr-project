@@ -89,17 +89,16 @@ lemma sol_inter: "sol (cs1@cs2 ) = sol (cs1 ) \<inter> sol (cs2)"
   apply (auto simp add:sol_def)
   by (metis Ax Un_absorb all_not_in_conv list.set(2) rev_image_eqI singletonI)
 
-lemma sol_inter_gen: "\<lbrakk>list (set x) = x\<rbrakk> \<Longrightarrow> sol (list (cs1 \<union> cs2)) = sol (list cs1) \<inter> sol (list cs2)"
-  apply(auto simp add: sol_def sol_inter)
-    apply (metis Ax UnI1 all_not_in_conv image_iff list.simps(15) singletonI)
-   apply (metis Ax all_not_in_conv list.simps(15) rev_image_eqI singletonI sup_idem)
-  by (metis Ax Un_absorb all_not_in_conv list.simps(15) rev_image_eqI singletonI)
 
 lemma sol_subs: "\<tau> \<in> sol (sapply_constraint_system \<sigma> cs) \<Longrightarrow> scomp_msg \<tau> \<sigma> \<in> sol cs"
   apply(auto simp add:sol_def)
    apply (metis Ax all_not_in_conv list.simps(15) rev_image_eqI singletonI sup_idem)
   apply (metis Ax all_not_in_conv list.simps(15) rev_image_eqI singletonI sup_idem)
   done
+
+lemma sol_inter_mult: "sol (cs1@c#cs2) = sol cs1 \<inter> sol [c] \<inter> sol cs2"
+  using sol_inter
+  by (metis append.left_neutral append_Cons inf_assoc)
 
 fun is_variable::"msg \<Rightarrow> bool" where
 "is_variable (Variable _) = True"
@@ -116,6 +115,10 @@ fun is_variable::"msg \<Rightarrow> bool" where
     premise \<lbrakk> y = Variable x \<rbrakk> \<Longrightarrow> ... {u}\<^sub>y ...; then there is no duplication (you could also 
     have used a single "let .. in .." though) and no need to unfold Let_def. You could even 
     eliminate more redundancy using \<lbrakk> c = {u}\<^sub>y \<rbrakk> \<Longrightarrow> ... c ... -- DONE \<checkmark>
+
+chsp (ADDED, 30.5.2023):
+  - decomposition rules: the constant "list" does not exist, it is just a (green!) variable below. 
+    Please use "M1 @ \<langle>u,v\<rangle> # M2" (and similar for \<lbrace>u\<rbrace>\<^sub>k etc.) instead of M on left-hand sides. -- DONE \<checkmark>
 *)
 inductive rer1 :: "constraint \<Rightarrow> subst_msg \<Rightarrow> constraint_system \<Rightarrow> bool"
 ("(_)/\<leadsto>\<^sub>1[_]/ (_)" [64,64,64]63) where
@@ -128,14 +131,13 @@ Unifl: "\<lbrakk>\<not> is_variable t; u \<in> set(M) \<union> set(A); Some \<si
 | CompAencl: "M | A \<Zrres> ({t}\<^sub>k) \<leadsto>\<^sub>1[Variable] [M | A \<Zrres> t, M | A \<Zrres> k]"
 | CompSignl: "M | A \<Zrres> ([t]\<^sub>\<iota>) \<leadsto>\<^sub>1[Variable] [M | A \<Zrres> t]"
 
-| Projl: "\<lbrakk>c = \<langle>u,v\<rangle>; c \<in> set(M); M' = list (set (M) - {c})\<rbrakk> \<Longrightarrow> 
-            M | A \<Zrres> t \<leadsto>\<^sub>1[Variable] [(u#v#M') | (c#A) \<Zrres> t]"
-| Sdecl: "\<lbrakk>c = \<lbrace>u\<rbrace>\<^sub>k; c \<in> set(M); M' = list (set (M) - {c})\<rbrakk> \<Longrightarrow> 
-            M | A \<Zrres> t \<leadsto>\<^sub>1[Variable] [(u#M') | (c#A) \<Zrres> t, M' | (c#A) \<Zrres> k]"
-| Adecl: "\<lbrakk>c = {u}\<^sub>\<iota>; c \<in> set(M); M' = list (set (M) - {c})\<rbrakk> \<Longrightarrow> 
-            M | A \<Zrres> t \<leadsto>\<^sub>1[Variable] [(u#M') | (c#A) \<Zrres> t]"
-| Ksubl: "\<lbrakk>y = Variable x; {u}\<^sub>y \<in> set(M)\<rbrakk> \<Longrightarrow> 
-            M | A \<Zrres> t \<leadsto>\<^sub>1[(Variable(x:=\<iota>))] [sapply_constraint (Variable(x:=\<iota>)) (M | A \<Zrres> t)]"
+| Projl: "(M1@(\<langle>u,v\<rangle>)#M2) | A \<Zrres> t \<leadsto>\<^sub>1[Variable] [(u#v#M1@M2) | ((\<langle>u,v\<rangle>)#A) \<Zrres> t]"
+| Sdecl: "(M1@(\<lbrace>u\<rbrace>\<^sub>k)#M2) | A \<Zrres> t \<leadsto>\<^sub>1[Variable] 
+                [(u#M1@M2) | ((\<lbrace>u\<rbrace>\<^sub>k)#A) \<Zrres> t, (M1@M2) | ((\<lbrace>u\<rbrace>\<^sub>k)#A) \<Zrres> k]"
+| Adecl: "(M1@({u}\<^sub>\<iota>)#M2) | A \<Zrres> t \<leadsto>\<^sub>1[Variable] [(u#M1@M2) | (({u}\<^sub>\<iota>)#A) \<Zrres> t]"
+| Ksubl: "y = Variable x \<Longrightarrow> 
+            (M1@({u}\<^sub>y)#M2) | A \<Zrres> t \<leadsto>\<^sub>1[(Variable(x:=\<iota>))] 
+                [sapply_constraint (Variable(x:=\<iota>)) ((M1@({u}\<^sub>y)#M2) | A \<Zrres> t)]"
 
 (*
   chsp:
@@ -145,13 +147,19 @@ Unifl: "\<lbrakk>\<not> is_variable t; u \<in> set(M) \<union> set(A); Some \<si
   the ambient list, not only at the beginning. Otherwise, this severely restricts the 
   non-determinism of the constraint reduction relation: you could always only reduce the first 
   constraint. -- DONE \<checkmark>
+
+chsp (ADDED 30.5.2023):
+  Your definition will not allow you to prove termination of constrain reduction, since cs' may 
+  be an infinite set of constraints. Also, it may make your proofs unnecessarily complicated.
+  (Btw, the condition "set(cs) \<subseteq> set(B)" is redundant. Why? -- since it was implied by the last constraint)
+  Please simplify it by using "cs1 @ c # cs2" on the left-hand side of \<leadsto>[\<sigma>] and adapting 
+  the right-hand side accordingly. -- DONE \<checkmark>
 *)
 
 inductive rer :: "constraint_system \<Rightarrow>subst_msg \<Rightarrow> constraint_system \<Rightarrow> bool"
 ("_/ \<leadsto>[_]/ _ " [73,73,73]72) where
-Context: "\<lbrakk>c \<leadsto>\<^sub>1[\<sigma>] cs; c \<in> set(A); set(cs) \<subseteq> set(B); set(A) = insert c cs'; 
-            set(B) = set(cs) \<union> ((sapply_constraint \<sigma>) ` cs') \<rbrakk> \<Longrightarrow> A \<leadsto>[\<sigma>] B"
-
+Context: "\<lbrakk>c \<leadsto>\<^sub>1[\<sigma>] cs\<rbrakk> \<Longrightarrow> 
+  (cs1 @ c # cs2) \<leadsto>[\<sigma>] ((sapply_constraint_system \<sigma> cs1) @ cs @ (sapply_constraint_system \<sigma> cs2))"
 
 inductive rer_star :: "constraint_system \<Rightarrow>subst_msg \<Rightarrow> constraint_system \<Rightarrow> bool"
 ("_/ \<leadsto>\<^emph>[_]/ _ " [73,73,73]72) where
@@ -181,39 +189,22 @@ lemma lemma7: "\<lbrakk>c \<leadsto>\<^sub>1[\<sigma>] cs; \<tau> \<in> sol cs\<
 
 thm Context
 
-(*lemma assumes 1: "cs \<leadsto>[\<sigma>] cs'" and 2:"\<tau> \<in> sol cs'" (*and xx: "list (set t) = t"*)
-  shows "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol cs"
-proof -
-  from 1 obtain c cs1 cs2 where 3: "c \<leadsto>\<^sub>1[\<sigma>] cs1" and 4: "c \<in> set(cs)" and
-5: "set cs1 \<subseteq> set cs'" and 6:"set cs = insert c cs2" and 7:"set cs' = set cs1 \<union> sapply_constraint \<sigma> ` cs2"
-    by(auto intro:rer.cases)
-  (*from 6 obtain cs3 where "cs3 = list cs2" "cs = c# cs3" *) 
-  from 2 7 have 9: "\<tau> \<in> sol cs1" and 10: "\<tau> \<in> sol (sapply_constraint_system \<sigma> (list cs2))" 
-    apply (auto simp add: sol_inter)
-    using sol_def apply auto[1]
-    apply(simp add: sol_def)
-    apply auto
-    by (metis Ax imageI insert_iff list.simps(15) sup.idem)
-  with 3 have  "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol [c]" "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol (list cs2)" by (auto intro:lemma7 sol_subs)
-  with 6 sol_inter_gen show ?thesis 
-*)
-
 lemma lemma8: 
   assumes 1: "cs \<leadsto>[\<sigma>] cs'" and 2:"\<tau> \<in> sol cs'" 
   shows "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol cs"
 proof -
-  from 1 obtain c cs1 cs2
-    where 3: "cs = c#cs2"  
-      and 4: "cs' =  cs1 @  (sapply_constraint_system \<sigma> cs2)" 
-      and  5: "c \<leadsto>\<^sub>1[\<sigma>] cs1" sorry
-  from 2 4 have 6: "\<tau> \<in> sol cs1" 
-    and 7: "\<tau> \<in> sol (sapply_constraint_system \<sigma> cs2)" 
-    by (auto simp add: sol_inter)
-  with 5 have "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol [c]" 
-    and "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol cs2" 
-    by (auto intro:lemma7 sol_subs)
-  with 3 sol_inter show ?thesis
-    by (metis IntI append_Cons append_Nil)
+  from 1 obtain c css cs1 cs2
+    where 3: "c \<leadsto>\<^sub>1[\<sigma>] css"
+      and 4: "cs = cs1@c#cs2"
+      and 5: "cs' = (sapply_constraint_system \<sigma> cs1) @ css @ (sapply_constraint_system \<sigma> cs2)"
+    by (rule rer.cases) auto
+  from 2 5 have "\<tau> \<in> sol (sapply_constraint_system \<sigma> cs1)"
+    and "\<tau> \<in> sol (css)"
+    and "\<tau> \<in> sol (sapply_constraint_system \<sigma> cs2)"
+    using sol_inter by auto
+  hence 6: "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol cs1" and 7: "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol cs2" using sol_subs by auto
+  from 3 \<open>\<tau> \<in> sol (css)\<close> have 8: "\<tau> \<circ>\<^sub>s \<sigma> \<in> sol [c]" using lemma7 by auto
+  from 6 8 7 4 show ?thesis using  sol_inter_mult by auto
 qed
 
 lemma lemma9: 
