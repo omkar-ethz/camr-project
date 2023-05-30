@@ -193,7 +193,7 @@ lemma finite_fv_sys [termination_simp]: "finite (fv_sys eqs)"
 lemma card_fv_sys: "x \<notin> fv t \<Longrightarrow>
     card (fv_sys (sapply_sys (Var(x := t)) eqs))
     < card (fv_sys ((Var x, t) # eqs))"
-  apply(auto simp add: fv_sapply_sys finite_fv_sys)
+  apply(auto simp only: fv_sapply_sys finite_fv_sys)
   using fv_sapply_sys finite_fv_sys
   sorry
 
@@ -238,7 +238,7 @@ lemma unify_case_Var: assumes
     and 3: "unify ((Var x, t) # eqs) = Some \<sigma>"
   shows "unifiess \<sigma> ((Var x, t) # eqs)"
 proof(cases "x \<notin> fv t")
-  case True (*case Unify of the unification algorithm*)
+  case True (*case Unify of the \<open>unify\<close>*)
   let ?\<sigma>' = "\<sigma> \<circ>\<^sub>s (Var(x := t))"
   have "Var(x := t) \<cdot> Var x = Var(x := t) \<cdot> t"
     by (metis True fun_upd_other fun_upd_same sapply.simps(1) sapply_cong var_term)
@@ -250,7 +250,7 @@ proof(cases "x \<notin> fv t")
     using unifies_sapply_sys by blast
   then show ?thesis sorry
 next
-  case False (*case Simp of the unification algorithm*)
+  case False (*case Simp of the \<open>unify\<close>*)
   from 2 have "unifiess \<sigma> eqs"
     by (metis "3" False Unification.Var option.discI)
   with 2 have \<open>Var x = t\<close> using "3" False by force 
@@ -320,35 +320,43 @@ fun wf_eq::"('f \<Rightarrow> nat) \<Rightarrow> ('f,'v) equation \<Rightarrow> 
 fun wf_eqs::"('f \<Rightarrow> nat) \<Rightarrow> ('f,'v) system \<Rightarrow> bool" where
 "wf_eqs ar sys = (\<forall>eq\<in>set sys. wf_eq ar eq)"
 
+lemma wf_subst_varp[simp]:
+  fixes x
+  assumes "wf_subst arity \<sigma>"
+  shows "wf_term arity (\<sigma> x)"
+using assms by simp
+
 lemma wf_term_sapply:
 "\<lbrakk>wf_term arity t; wf_subst arity \<sigma>\<rbrakk> \<Longrightarrow> wf_term arity (\<sigma> \<cdot> t)"
-  sorry
+  by(induction t) simp_all
 
 lemma wf_subst_scomp:
 "\<lbrakk>wf_subst arity \<sigma>; wf_subst arity \<tau>\<rbrakk> \<Longrightarrow> wf_subst arity (\<sigma> \<circ>\<^sub>s \<tau>)"
   using wf_term_sapply
   by (metis scomp.elims wf_subst.elims(1))
 
-lemma wf_fun_eq: "wf_eqs arity ((Fun f xs, Fun g ys) # eqs) \<Longrightarrow> wf_eqs arity (zip xs ys @ eqs)"
-  sorry
+lemma wf_fun_eq: "wf_eq arity ((Fun f xs, Fun g ys)) \<Longrightarrow> wf_eqs arity (zip xs ys)"
+  using set_zip_leftD set_zip_rightD by fastforce
+
+(*some trivial lemmas to prove wf_fun_eqs*)
+lemma wf_eq1: "wf_eqs arity (eq#eqs) \<Longrightarrow> wf_eq arity eq" by simp
+lemma wf_eq2: "wf_eqs arity (eq#eqs) \<Longrightarrow> wf_eqs arity eqs" by simp
+
+lemma wf_fun_eqs: "wf_eqs arity ((Fun f xs, Fun g ys)#eqs) \<Longrightarrow> wf_eqs arity ((zip xs ys)@eqs)"
+  using wf_eq1 wf_eq2
+  by (metis UnE set_append wf_eqs.elims(1) wf_fun_eq)
 
 lemma wf_subst_unify:
 "\<lbrakk>unify eqs = Some \<sigma>; wf_eqs arity eqs\<rbrakk> \<Longrightarrow> wf_subst arity \<sigma>"
 proof(induction eqs rule:unify.induct)
-  case 1
-  then show ?case by simp
-next
   case (2 x t eqs)
   then show ?case sorry
-next
-  case (3 v va x eqs)
-  then show ?case by simp
 next
   case (4 f xs g ys eqs)
   from 4 have p1: \<open>f=g\<close> by (metis Unification.Fun option.distinct(1))
   from 4 have p2: \<open>length xs = length ys\<close> by (metis Unification.Fun option.distinct(1))
   from 4 have p3: \<open>unify (zip xs ys @ eqs) = Some \<sigma>\<close> by (simp add: \<open>f = g\<close> \<open>length xs = length ys\<close>)
-  with p1 p2 4  show ?case using wf_fun_eq by fast
-qed
+  with p1 p2 4  show ?case using wf_fun_eqs by fast
+qed auto
 
 end
