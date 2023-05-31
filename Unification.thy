@@ -183,7 +183,7 @@ fun size_term_sys :: "('f,'v) system \<Rightarrow> nat" where
 "size_term_sys [] = 0"
 | "size_term_sys ((t,u) # eqs) = size_term t + size_term_sys eqs"
 
-(*more lemmas to help with termination proof:*)
+(*some lemmas to help with termination proof:*)
 lemma finite_fv [termination_simp]: "finite (fv x)" by (induction rule:fv.induct) simp_all 
 
 lemma finite_fv_sys [termination_simp]: "finite (fv_sys eqs)"
@@ -199,7 +199,7 @@ lemma card_fv_sys: "x \<notin> fv t \<Longrightarrow>
 
 
 (*
-  chsp: in equation Fun: check that the xs and ys have the same length
+  chsp: in equation Fun: check that the xs and ys have the same length -- DONE \<checkmark>
 *)
 function (sequential) unify :: "('f,'v) system \<Rightarrow> ('f,'v) subst option" where
 "unify [] = Some Var"
@@ -216,7 +216,7 @@ function (sequential) unify :: "('f,'v) system \<Rightarrow> ('f,'v) subst optio
 | Fun: "unify ((Fun f xs, Fun g ys) # eqs) = (if f=g  \<and> length xs = length ys then unify ((zip xs ys) @ eqs) else None)"
   by pat_completeness auto
 termination 
-  (* chsp: note that (\<lambda>sys. size_term_sys sys) will eta-reduce to size_term_sys *)
+  (* chsp: note that (\<lambda>sys. size_term_sys sys) will eta-reduce to size_term_sys  -- DONE \<checkmark>*)
   apply(relation "measures [(\<lambda>sys. card (fv_sys sys)), size_term_sys, size]")
       apply simp
      apply(simp add: card_fv_sys)
@@ -263,7 +263,7 @@ proof(induction sys rule:unify.induct)
   case (2 x t eqs)
   thus ?case using unify_case_Var by fast
 next
-  case (4 f xs g ys eqs)
+  case (4 f xs g ys eqs) (*case Fun of the \<open>unify\<close>*)
   from 4 have \<open>f=g\<close> by (metis Unification.Fun option.distinct(1))
   from 4 have \<open>length xs = length ys\<close> by (metis Unification.Fun option.distinct(1))
   from 4 have \<open>unify (zip xs ys @ eqs) = Some \<sigma>\<close> by (simp add: \<open>f = g\<close> \<open>length xs = length ys\<close>)
@@ -302,6 +302,27 @@ qed simp
 
 theorem unify_complete: "\<exists>\<tau>. unifiess \<tau> sys \<Longrightarrow> \<exists>\<sigma>. unify sys = Some \<sigma>"
   using lemma2  by auto
+
+
+lemma lemma3:
+  assumes "unify sys = Some \<sigma>"
+  shows 1: "fv_sys (sapply_sys \<sigma> sys) \<subseteq> fv_sys sys \<and> sdom \<sigma> \<subseteq> fv_sys sys \<and> svran \<sigma> \<subseteq> fv_sys sys"
+  using assms
+proof(induction sys rule:unify.induct)
+  case (2 x t eqs)
+  then show ?case sorry
+next
+  case (4 f xs g ys eqs)
+  from 4 have \<open>f=g\<close> by (metis Unification.Fun option.distinct(1))
+  moreover from 4 have \<open>length xs = length ys\<close> by (metis Unification.Fun option.distinct(1))
+  moreover from 4 have \<open>unify (zip xs ys @ eqs) = Some \<sigma>\<close> by (simp add: \<open>f = g\<close> \<open>length xs = length ys\<close>)
+  ultimately have "fv_sys (sapply_sys \<sigma> (zip xs ys @ eqs)) \<subseteq> fv_sys (zip xs ys @ eqs) \<and>
+        sdom \<sigma> \<subseteq> fv_sys (zip xs ys @ eqs) \<and> svran \<sigma> \<subseteq> fv_sys (zip xs ys @ eqs)" 
+    using 4(1) by simp 
+  then show ?case sorry
+
+qed (auto simp add:fv_sys_def sapply_sys_def fv_eq_def sapply_eq_def)
+
 
 subsection \<open>Assignment 4\<close>
 

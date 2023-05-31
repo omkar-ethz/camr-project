@@ -80,8 +80,6 @@ fun sapply_constraint::"subst_msg \<Rightarrow> constraint \<Rightarrow> constra
 fun sapply_constraint_system::"subst_msg \<Rightarrow> constraint_system \<Rightarrow> constraint_system" where
 "sapply_constraint_system \<sigma> cs = map (sapply_constraint \<sigma>) cs"
 
-(*add main lemmas(?) about fv and sapply*)
-
 definition sol::"constraint_system \<Rightarrow> subst_msg set" where
 "sol cs = {\<sigma> | M A t \<sigma>. (M | A \<Zrres> t) \<in> set(cs) \<longrightarrow> set(map (sapply_msg \<sigma>) (M@A)) \<turnstile> sapply_msg \<sigma> t}"
 
